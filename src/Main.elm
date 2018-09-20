@@ -59,6 +59,7 @@ type Msg
     | UpdateDescription String
     | UpdateTimeSpent String
     | AddEntry
+    | DeleteEntry Int
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -94,6 +95,13 @@ update msg model =
                     }
             in
             ( { model | entries = [ entry ] ++ model.entries }, Cmd.none )
+
+        DeleteEntry index ->
+            let
+                newEntries =
+                    List.take index model.entries ++ List.drop (index + 1) model.entries
+            in
+            ( { model | entries = newEntries }, Cmd.none )
 
 
 
@@ -155,13 +163,23 @@ view model =
                         ]
                      ]
                         ++ (model.entries
-                                |> List.map
-                                    (\entry ->
+                                |> List.indexedMap
+                                    (\index entry ->
                                         Html.tr []
                                             [ Html.td [] [ Html.text <| String.fromInt <| Time.posixToMillis entry.date ]
                                             , Html.td [] [ Html.text entry.name ]
                                             , Html.td [] [ Html.text entry.description ]
                                             , Html.td [] [ Html.text <| String.fromFloat entry.timeSpent ]
+                                            , Html.td []
+                                                [ Html.a
+                                                    [ Html.Attributes.href "#"
+                                                    , Html.Attributes.style "text-decoration" "none"
+                                                    , Html.Attributes.style "font-size" "1.5em"
+                                                    , Html.Attributes.style "color" "#F00"
+                                                    , Html.Events.onClick <| DeleteEntry index
+                                                    ]
+                                                    [ Html.text "✗" ]
+                                                ]
                                             ]
                                     )
                            )
