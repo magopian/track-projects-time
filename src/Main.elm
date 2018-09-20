@@ -15,7 +15,7 @@ import Time
 type alias Model =
     { entries : List Entry
     , zone : Time.Zone
-    , editDate : String
+    , time : Time.Posix
     , editProjectName : String
     , editDescription : String
     , editTimeSpent : String
@@ -40,12 +40,15 @@ init =
               }
             ]
       , zone = Time.utc
-      , editDate = "0"
+      , time = Time.millisToPosix 0
       , editProjectName = ""
       , editDescription = ""
       , editTimeSpent = "1"
       }
-    , Task.perform AdjustTimeZone Time.here
+    , Cmd.batch
+        [ Task.perform AdjustTimeZone Time.here
+        , Task.perform NewTime Time.now
+        ]
     )
 
 
@@ -55,10 +58,12 @@ init =
 
 type Msg
     = AdjustTimeZone Time.Zone
+    | NewTime Time.Posix
     | UpdateProjectName String
     | UpdateDescription String
     | UpdateTimeSpent String
     | AddEntry
+    | AddingEntry Entry Time.Posix
     | DeleteEntry Int
 
 
@@ -67,6 +72,9 @@ update msg model =
     case msg of
         AdjustTimeZone zone ->
             ( { model | zone = zone }, Cmd.none )
+
+        NewTime time ->
+            ( { model | time = time }, Cmd.none )
 
         UpdateProjectName name ->
             ( { model | editProjectName = name }, Cmd.none )
@@ -87,14 +95,20 @@ update msg model =
                 entry =
                     { name = model.editProjectName
                     , description = model.editDescription
-                    , timeSpent =
-                        model.editTimeSpent
-                            |> String.toFloat
-                            |> Maybe.withDefault 0
+                    , timeSpent = timeSpent
                     , date = Time.millisToPosix 0
                     }
             in
-            ( { model | entries = [ entry ] ++ model.entries }, Cmd.none )
+            -- Don't add the entry yet, ask for a time to timestamp it
+            ( model, Task.perform (AddingEntry entry) Time.now )
+
+        AddingEntry entry time ->
+            let
+                datedEntry =
+                    { entry | date = time }
+            in
+            -- Add the entry now that it's timestamped
+            ( { model | entries = [ datedEntry ] ++ model.entries }, Cmd.none )
 
         DeleteEntry index ->
             let
@@ -116,7 +130,7 @@ view model =
             [ Html.Events.onSubmit AddEntry ]
             [ Html.table [ Html.Attributes.style "width" "100%" ]
                 [ Html.thead []
-                    [ Html.th [] [ Html.text "When was it" ]
+                    [ Html.th [] [ Html.text "Timestamp" ]
                     , Html.th [] [ Html.text "Project name" ]
                     , Html.th [] [ Html.text "What was done" ]
                     , Html.th [] [ Html.text "How long did it take" ]
@@ -124,13 +138,7 @@ view model =
                     ]
                 , Html.tbody []
                     ([ Html.tr []
-                        [ Html.td []
-                            [ Html.input
-                                [ Html.Attributes.type_ "text"
-                                , Html.Attributes.value model.editDate
-                                ]
-                                []
-                            ]
+                        [ Html.td [] [] -- The date is a timestamp from the time the entry is added
                         , Html.td []
                             [ Html.input
                                 [ Html.Attributes.type_ "text"
@@ -166,7 +174,7 @@ view model =
                                 |> List.indexedMap
                                     (\index entry ->
                                         Html.tr []
-                                            [ Html.td [] [ Html.text <| String.fromInt <| Time.posixToMillis entry.date ]
+                                            [ Html.td [] [ Html.text <| toDate entry.date model.zone ]
                                             , Html.td [] [ Html.text entry.name ]
                                             , Html.td [] [ Html.text entry.description ]
                                             , Html.td [] [ Html.text <| String.fromFloat entry.timeSpent ]
@@ -187,6 +195,74 @@ view model =
                 ]
             ]
         ]
+
+
+
+---- UTILS ----
+
+
+toDate : Time.Posix -> Time.Zone -> String
+toDate time zone =
+    let
+        year =
+            String.fromInt (Time.toYear zone time)
+
+        month =
+            stringFromMonth (Time.toMonth zone time)
+
+        day =
+            String.fromInt (Time.toDay zone time)
+
+        hour =
+            String.fromInt (Time.toHour zone time)
+
+        minute =
+            String.fromInt (Time.toMinute zone time)
+
+        second =
+            String.fromInt (Time.toSecond zone time)
+    in
+    year ++ "-" ++ month ++ "-" ++ day ++ " " ++ hour ++ ":" ++ minute ++ ":" ++ second
+
+
+stringFromMonth : Time.Month -> String
+stringFromMonth month =
+    case month of
+        Time.Jan ->
+            "01"
+
+        Time.Feb ->
+            "02"
+
+        Time.Mar ->
+            "03"
+
+        Time.Apr ->
+            "04"
+
+        Time.May ->
+            "05"
+
+        Time.Jun ->
+            "06"
+
+        Time.Jul ->
+            "07"
+
+        Time.Aug ->
+            "08"
+
+        Time.Sep ->
+            "09"
+
+        Time.Oct ->
+            "10"
+
+        Time.Nov ->
+            "11"
+
+        Time.Dec ->
+            "12"
 
 
 
