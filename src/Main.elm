@@ -15,6 +15,7 @@ import Time
 type alias Model =
     { entries : List Entry
     , zone : Time.Zone
+    , editDate : String
     , editProjectName : String
     , editDescription : String
     , editTimeSpent : String
@@ -39,6 +40,7 @@ init =
               }
             ]
       , zone = Time.utc
+      , editDate = "0"
       , editProjectName = ""
       , editDescription = ""
       , editTimeSpent = "1"
@@ -91,7 +93,7 @@ update msg model =
                     , date = Time.millisToPosix 0
                     }
             in
-            ( { model | entries = model.entries ++ [ entry ] }, Cmd.none )
+            ( { model | entries = [ entry ] ++ model.entries }, Cmd.none )
 
 
 
@@ -102,62 +104,67 @@ view : Model -> Html.Html Msg
 view model =
     Html.div []
         [ Html.h1 [] [ Html.text "Time spent on projects" ]
-        , Html.h3 [] [ Html.text "Add a new entry" ]
         , Html.form
-            [ Html.Events.onSubmit AddEntry
-            ]
-            [ Html.label []
-                [ Html.text "Project name"
-                , Html.input
-                    [ Html.Attributes.type_ "text"
-                    , Html.Events.onInput UpdateProjectName
-                    , Html.Attributes.value model.editProjectName
+            [ Html.Events.onSubmit AddEntry ]
+            [ Html.table [ Html.Attributes.style "width" "100%" ]
+                [ Html.thead []
+                    [ Html.th [] [ Html.text "When was it" ]
+                    , Html.th [] [ Html.text "Project name" ]
+                    , Html.th [] [ Html.text "What was done" ]
+                    , Html.th [] [ Html.text "How long did it take" ]
+                    , Html.th [] [ Html.text "Actions" ]
                     ]
-                    []
-                ]
-            , Html.label
-                []
-                [ Html.text "What was done"
-                , Html.input
-                    [ Html.Attributes.type_ "text"
-                    , Html.Events.onInput UpdateDescription
-                    , Html.Attributes.value model.editDescription
-                    ]
-                    []
-                ]
-            , Html.label
-                []
-                [ Html.text "How many days?"
-                , Html.input
-                    [ Html.Attributes.type_ "number"
-                    , Html.Attributes.step "0.25"
-                    , Html.Attributes.min "0"
-                    , Html.Events.onInput UpdateTimeSpent
-                    , Html.Attributes.value model.editTimeSpent
-                    ]
-                    []
-                ]
-            , Html.input [ Html.Attributes.type_ "submit", Html.Attributes.value "Add this entry" ] []
-            ]
-        , Html.hr [] []
-        , Html.table [ Html.Attributes.style "width" "100%" ]
-            [ Html.thead []
-                [ Html.th [] [ Html.text "When was it" ]
-                , Html.th [] [ Html.text "Project name" ]
-                , Html.th [] [ Html.text "What was done" ]
-                , Html.th [] [ Html.text "How long did it take" ]
-                ]
-            , model.entries
-                |> List.map
-                    (\entry ->
-                        Html.tr []
-                            [ Html.td [] [ Html.text <| String.fromInt <| Time.posixToMillis entry.date ]
-                            , Html.td [] [ Html.text entry.name ]
-                            , Html.td [] [ Html.text entry.description ]
-                            , Html.td [] [ Html.text <| String.fromFloat entry.timeSpent ]
+                , Html.tbody []
+                    ([ Html.tr []
+                        [ Html.td []
+                            [ Html.input
+                                [ Html.Attributes.type_ "text"
+                                , Html.Attributes.value model.editDate
+                                ]
+                                []
                             ]
+                        , Html.td []
+                            [ Html.input
+                                [ Html.Attributes.type_ "text"
+                                , Html.Events.onInput UpdateProjectName
+                                , Html.Attributes.value model.editProjectName
+                                ]
+                                []
+                            ]
+                        , Html.td []
+                            [ Html.input
+                                [ Html.Attributes.type_ "text"
+                                , Html.Events.onInput UpdateDescription
+                                , Html.Attributes.value model.editDescription
+                                ]
+                                []
+                            ]
+                        , Html.td []
+                            [ Html.input
+                                [ Html.Attributes.type_ "number"
+                                , Html.Attributes.step "0.25"
+                                , Html.Attributes.min "0"
+                                , Html.Events.onInput UpdateTimeSpent
+                                , Html.Attributes.value model.editTimeSpent
+                                ]
+                                []
+                            ]
+                        , Html.input [ Html.Attributes.type_ "submit", Html.Attributes.value "Add this entry" ] []
+                        ]
+                     ]
+                        ++ (model.entries
+                                |> List.map
+                                    (\entry ->
+                                        Html.tr []
+                                            [ Html.td [] [ Html.text <| String.fromInt <| Time.posixToMillis entry.date ]
+                                            , Html.td [] [ Html.text entry.name ]
+                                            , Html.td [] [ Html.text entry.description ]
+                                            , Html.td [] [ Html.text <| String.fromFloat entry.timeSpent ]
+                                            ]
+                                    )
+                           )
                     )
-                |> Html.tbody []
+                ]
             ]
         ]
 
