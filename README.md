@@ -15,6 +15,8 @@ Maybe in the future it would be nice to be able to
 * mark entries as being billed (with a link to the invoice?)
 * mark entries as being paid (with a link to the bank transfer?)
 
+Look at the demo at https://magopian.github.io/track-projects-time/
+
 ---
 
 
