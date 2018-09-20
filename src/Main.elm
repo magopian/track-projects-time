@@ -128,14 +128,16 @@ view model =
                                 [ Html.Attributes.type_ "text"
                                 , Html.Events.onInput UpdateProjectName
                                 , Html.Attributes.value model.editProjectName
+                                , Html.Attributes.style "width" "90%"
                                 ]
                                 []
                             ]
                         , Html.td []
-                            [ Html.input
-                                [ Html.Attributes.type_ "text"
-                                , Html.Events.onInput UpdateDescription
+                            [ Html.textarea
+                                [ Html.Events.onInput UpdateDescription
                                 , Html.Attributes.value model.editDescription
+                                , Html.Attributes.style "width" "100%"
+                                , Html.Attributes.rows 2
                                 ]
                                 []
                             ]
