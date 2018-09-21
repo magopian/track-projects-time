@@ -5,7 +5,6 @@ import Html
 import Html.Attributes
 import Html.Events
 import Task
-import Time
 
 
 
@@ -14,7 +13,6 @@ import Time
 
 type alias Model =
     { entries : List Entry
-    , zone : Time.Zone
     , editDate : String
     , editProjectName : String
     , editDescription : String
@@ -39,16 +37,12 @@ init =
               , date = "2018-09-21"
               }
             ]
-      , zone = Time.utc
       , editDate = ""
       , editProjectName = ""
       , editDescription = ""
       , editTimeSpent = "1"
       }
-    , Cmd.batch
-        [ Task.perform AdjustTimeZone Time.here
-        , Task.perform NewTime Time.now
-        ]
+    , Cmd.none
     )
 
 
@@ -57,9 +51,7 @@ init =
 
 
 type Msg
-    = AdjustTimeZone Time.Zone
-    | NewTime Time.Posix
-    | UpdateDate String
+    = UpdateDate String
     | UpdateProjectName String
     | UpdateDescription String
     | UpdateTimeSpent String
@@ -70,12 +62,6 @@ type Msg
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        AdjustTimeZone zone ->
-            ( { model | zone = zone }, Cmd.none )
-
-        NewTime time ->
-            ( { model | editDate = toDate time model.zone }, Cmd.none )
-
         UpdateDate date ->
             ( { model | editDate = date }, Cmd.none )
 
@@ -195,65 +181,6 @@ view model =
                 ]
             ]
         ]
-
-
-
----- UTILS ----
-
-
-toDate : Time.Posix -> Time.Zone -> String
-toDate time zone =
-    let
-        year =
-            String.fromInt (Time.toYear zone time)
-
-        month =
-            stringFromMonth (Time.toMonth zone time)
-
-        day =
-            String.fromInt (Time.toDay zone time)
-    in
-    year ++ "-" ++ month ++ "-" ++ day
-
-
-stringFromMonth : Time.Month -> String
-stringFromMonth month =
-    case month of
-        Time.Jan ->
-            "01"
-
-        Time.Feb ->
-            "02"
-
-        Time.Mar ->
-            "03"
-
-        Time.Apr ->
-            "04"
-
-        Time.May ->
-            "05"
-
-        Time.Jun ->
-            "06"
-
-        Time.Jul ->
-            "07"
-
-        Time.Aug ->
-            "08"
-
-        Time.Sep ->
-            "09"
-
-        Time.Oct ->
-            "10"
-
-        Time.Nov ->
-            "11"
-
-        Time.Dec ->
-            "12"
 
 
 
