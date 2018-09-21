@@ -167,7 +167,9 @@ view model =
                                 ]
                                 []
                             ]
-                        , Html.input [ Html.Attributes.type_ "submit", Html.Attributes.value "Add this entry" ] []
+                        , Html.td []
+                            [ Html.input [ Html.Attributes.type_ "submit", Html.Attributes.value "Add this entry" ] []
+                            ]
                         ]
                      ]
                         ++ (model.entries
