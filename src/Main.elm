@@ -23,16 +23,6 @@ type alias Model =
     }
 
 
-type alias Entry =
-    { id : String
-    , last_modified : Int
-    , name : String
-    , description : String
-    , timeSpent : Float
-    , date : String
-    }
-
-
 init : ( Model, Cmd Msg )
 init =
     ( { entries = []
@@ -56,7 +46,8 @@ type Msg
     | UpdateTimeSpent String
     | AddEntry
     | EntryAdded (Result Kinto.Error Entry)
-    | DeleteEntry Int
+    | DeleteEntry String
+    | EntryDeleted (Result Kinto.Error DeletedEntry)
     | EntriesFetched (Result Kinto.Error (Kinto.Pager Entry))
 
 
@@ -105,12 +96,24 @@ update msg model =
             in
             ( model, Cmd.none )
 
-        DeleteEntry index ->
+        DeleteEntry entryID ->
+            ( model, deleteEntry entryID )
+
+        EntryDeleted (Ok deletedEntry) ->
+            ( { model
+                | entries =
+                    model.entries
+                        |> List.filter (\e -> e.id /= deletedEntry.id)
+              }
+            , Cmd.none
+            )
+
+        EntryDeleted (Err err) ->
             let
-                newEntries =
-                    List.take index model.entries ++ List.drop (index + 1) model.entries
+                _ =
+                    Debug.log "Error while deleting the entry" err
             in
-            ( { model | entries = newEntries }, Cmd.none )
+            ( model, Cmd.none )
 
         EntriesFetched (Ok entriesPager) ->
             ( { model | entries = entriesPager.objects }, Cmd.none )
@@ -182,8 +185,8 @@ view model =
                         ]
                      ]
                         ++ (model.entries
-                                |> List.indexedMap
-                                    (\index entry ->
+                                |> List.map
+                                    (\entry ->
                                         Html.tr []
                                             [ Html.td [] [ Html.text entry.date ]
                                             , Html.td [] [ Html.text entry.name ]
@@ -195,7 +198,7 @@ view model =
                                                     , Html.Attributes.style "text-decoration" "none"
                                                     , Html.Attributes.style "font-size" "1.5em"
                                                     , Html.Attributes.style "color" "#F00"
-                                                    , Html.Events.onClick <| DeleteEntry index
+                                                    , Html.Events.onClick <| DeleteEntry entry.id
                                                     ]
                                                     [ Html.text "✗" ]
                                                 ]
@@ -210,6 +213,17 @@ view model =
 
 
 ---- DECODERS ----
+-- Entry --
+
+
+type alias Entry =
+    { id : String
+    , last_modified : Int
+    , name : String
+    , description : String
+    , timeSpent : Float
+    , date : String
+    }
 
 
 decodeEntry : Decode.Decoder Entry
@@ -251,6 +265,37 @@ getEntryList =
         |> Kinto.getList recordResource
         |> Kinto.sort [ "-date", "name" ]
         |> Kinto.send EntriesFetched
+
+
+
+-- Deleted Entry --
+
+
+type alias DeletedEntry =
+    { id : String
+    , last_modified : Int
+    , deleted : Bool
+    }
+
+
+deletedRecordResource : Kinto.Resource DeletedEntry
+deletedRecordResource =
+    Kinto.recordResource "default" "track-projects-time" decodeDeletedEntry
+
+
+decodeDeletedEntry : Decode.Decoder DeletedEntry
+decodeDeletedEntry =
+    Decode.map3 DeletedEntry
+        (Decode.field "id" Decode.string)
+        (Decode.field "last_modified" Decode.int)
+        (Decode.field "deleted" Decode.bool)
+
+
+deleteEntry : String -> Cmd Msg
+deleteEntry entryID =
+    client
+        |> Kinto.delete deletedRecordResource entryID
+        |> Kinto.send EntryDeleted
 
 
 
