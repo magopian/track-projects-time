@@ -87,7 +87,14 @@ update msg model =
             )
 
         EntryAdded (Ok entry) ->
-            ( { model | entries = [ entry ] ++ model.entries }, Cmd.none )
+            let
+                entries =
+                    [ entry ]
+                        ++ model.entries
+                        |> List.sortBy .date
+                        |> List.reverse
+            in
+            ( { model | entries = entries }, Cmd.none )
 
         EntryAdded (Err err) ->
             let
