@@ -35,21 +35,13 @@ type alias Entry =
 
 init : ( Model, Cmd Msg )
 init =
-    ( { entries =
-            [ { id = "foobar"
-              , last_modified = 0
-              , name = "track projects time"
-              , description = "Start the project"
-              , timeSpent = 0.5
-              , date = "2018-09-21"
-              }
-            ]
+    ( { entries = []
       , editDate = ""
       , editProjectName = ""
       , editDescription = ""
       , editTimeSpent = "1"
       }
-    , Cmd.none
+    , getEntryList
     )
 
 
@@ -65,6 +57,7 @@ type Msg
     | AddEntry
     | EntryAdded (Result Kinto.Error Entry)
     | DeleteEntry Int
+    | EntriesFetched (Result Kinto.Error (Kinto.Pager Entry))
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -118,6 +111,16 @@ update msg model =
                     List.take index model.entries ++ List.drop (index + 1) model.entries
             in
             ( { model | entries = newEntries }, Cmd.none )
+
+        EntriesFetched (Ok entriesPager) ->
+            ( { model | entries = entriesPager.objects }, Cmd.none )
+
+        EntriesFetched (Err err) ->
+            let
+                _ =
+                    Debug.log "Error while fetching the entries" err
+            in
+            ( model, Cmd.none )
 
 
 
@@ -240,6 +243,14 @@ client =
 recordResource : Kinto.Resource Entry
 recordResource =
     Kinto.recordResource "default" "track-projects-time" decodeEntry
+
+
+getEntryList : Cmd Msg
+getEntryList =
+    client
+        |> Kinto.getList recordResource
+        |> Kinto.sort [ "-date", "name" ]
+        |> Kinto.send EntriesFetched
 
 
 
