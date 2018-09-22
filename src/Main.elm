@@ -300,7 +300,12 @@ viewLoggedIn model =
                                 []
                             ]
                         , Html.td []
-                            [ Html.input [ Html.Attributes.type_ "submit", Html.Attributes.value "Add this entry" ] []
+                            [ Html.input
+                                [ Html.Attributes.type_ "submit"
+                                , Html.Attributes.class "button"
+                                , Html.Attributes.value "Add this entry"
+                                ]
+                                []
                             ]
                         ]
                      ]
@@ -313,14 +318,11 @@ viewLoggedIn model =
                                             , Html.td [] [ Html.text entry.description ]
                                             , Html.td [] [ Html.text <| String.fromFloat entry.timeSpent ]
                                             , Html.td []
-                                                [ Html.a
-                                                    [ Html.Attributes.href "#"
-                                                    , Html.Attributes.style "text-decoration" "none"
-                                                    , Html.Attributes.style "font-size" "1.5em"
-                                                    , Html.Attributes.style "color" "#F00"
+                                                [ Html.button
+                                                    [ Html.Attributes.class "button-danger"
                                                     , Html.Events.onClick <| DeleteEntry entry.id
                                                     ]
-                                                    [ Html.text "✗" ]
+                                                    [ Html.text "Remove this entry" ]
                                                 ]
                                             ]
                                     )
