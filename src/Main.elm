@@ -4,6 +4,9 @@ import Browser
 import Html
 import Html.Attributes
 import Html.Events
+import Json.Decode as Decode
+import Json.Encode as Encode
+import Kinto
 import Task
 
 
@@ -21,7 +24,9 @@ type alias Model =
 
 
 type alias Entry =
-    { name : String
+    { id : String
+    , last_modified : Int
+    , name : String
     , description : String
     , timeSpent : Float
     , date : String
@@ -31,7 +36,9 @@ type alias Entry =
 init : ( Model, Cmd Msg )
 init =
     ( { entries =
-            [ { name = "track projects time"
+            [ { id = "foobar"
+              , last_modified = 0
+              , name = "track projects time"
               , description = "Start the project"
               , timeSpent = 0.5
               , date = "2018-09-21"
@@ -56,6 +63,7 @@ type Msg
     | UpdateDescription String
     | UpdateTimeSpent String
     | AddEntry
+    | EntryAdded (Result Kinto.Error Entry)
     | DeleteEntry Int
 
 
@@ -81,14 +89,28 @@ update msg model =
                         |> String.toFloat
                         |> Maybe.withDefault 0
 
-                entry =
-                    { name = model.editProjectName
-                    , description = model.editDescription
-                    , timeSpent = timeSpent
-                    , date = model.editDate
-                    }
+                data =
+                    encodeData
+                        model.editProjectName
+                        model.editDescription
+                        timeSpent
+                        model.editDate
             in
+            ( model
+            , client
+                |> Kinto.create recordResource data
+                |> Kinto.send EntryAdded
+            )
+
+        EntryAdded (Ok entry) ->
             ( { model | entries = [ entry ] ++ model.entries }, Cmd.none )
+
+        EntryAdded (Err err) ->
+            let
+                _ =
+                    Debug.log "Error while adding the entry" err
+            in
+            ( model, Cmd.none )
 
         DeleteEntry index ->
             let
@@ -181,6 +203,43 @@ view model =
                 ]
             ]
         ]
+
+
+
+---- DECODERS ----
+
+
+decodeEntry : Decode.Decoder Entry
+decodeEntry =
+    Decode.map6 Entry
+        (Decode.field "id" Decode.string)
+        (Decode.field "last_modified" Decode.int)
+        (Decode.field "name" Decode.string)
+        (Decode.field "description" Decode.string)
+        (Decode.field "timeSpent" Decode.float)
+        (Decode.field "date" Decode.string)
+
+
+encodeData : String -> String -> Float -> String -> Encode.Value
+encodeData name description timeSpent date =
+    Encode.object
+        [ ( "name", Encode.string name )
+        , ( "description", Encode.string description )
+        , ( "timeSpent", Encode.float timeSpent )
+        , ( "date", Encode.string date )
+        ]
+
+
+client : Kinto.Client
+client =
+    Kinto.client
+        "https://kinto.agopian.info/v1/"
+        (Kinto.Basic "test" "test")
+
+
+recordResource : Kinto.Resource Entry
+recordResource =
+    Kinto.recordResource "default" "track-projects-time" decodeEntry
 
 
 
