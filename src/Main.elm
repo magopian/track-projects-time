@@ -21,6 +21,9 @@ type alias Model =
     , editDescription : String
     , editTimeSpent : String
     , page : Page
+    , serverURL : String
+    , username : String
+    , password : String
     }
 
 
@@ -36,6 +39,9 @@ init =
       , editProjectName = ""
       , editDescription = ""
       , editTimeSpent = "1"
+      , serverURL = ""
+      , username = ""
+      , password = ""
       , page = LoginForm
       }
       -- , getEntryList client
@@ -57,6 +63,10 @@ type Msg
     | DeleteEntry String
     | EntryDeleted (Result Kinto.Error DeletedEntry)
     | EntriesFetched (Result Kinto.Error (Kinto.Pager Entry))
+    | UpdateServerURL String
+    | UpdateUsername String
+    | UpdatePassword String
+    | UseLogin
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -160,6 +170,22 @@ update msg model =
             in
             ( model, Cmd.none )
 
+        UpdateServerURL serverURL ->
+            ( { model | serverURL = serverURL }, Cmd.none )
+
+        UpdateUsername username ->
+            ( { model | username = username }, Cmd.none )
+
+        UpdatePassword password ->
+            ( { model | password = password }, Cmd.none )
+
+        UseLogin ->
+            let
+                client =
+                    Kinto.client model.serverURL (Kinto.Basic model.username model.password)
+            in
+            ( { model | page = LoggedIn client }, getEntryList client )
+
 
 
 ---- VIEW ----
@@ -177,25 +203,39 @@ view model =
 
 viewLoginForm : Model -> Html.Html Msg
 viewLoginForm model =
-    Html.form []
+    Html.form
+        [ Html.Events.onSubmit UseLogin
+        ]
         [ Html.fieldset []
             [ Html.legend [] [ Html.text "Kinto credentials" ]
             , Html.div [ Html.Attributes.class "input-field" ]
                 [ Html.label []
                     [ Html.text "Server URL"
-                    , Html.input [ Html.Attributes.type_ "text" ] []
+                    , Html.input
+                        [ Html.Attributes.type_ "text"
+                        , Html.Events.onInput UpdateServerURL
+                        ]
+                        []
                     ]
                 ]
             , Html.div [ Html.Attributes.class "input-field" ]
                 [ Html.label []
                     [ Html.text "Username"
-                    , Html.input [ Html.Attributes.type_ "text" ] []
+                    , Html.input
+                        [ Html.Attributes.type_ "text"
+                        , Html.Events.onInput UpdateUsername
+                        ]
+                        []
                     ]
                 ]
             , Html.div [ Html.Attributes.class "input-field" ]
                 [ Html.label []
                     [ Html.text "Password"
-                    , Html.input [ Html.Attributes.type_ "password" ] []
+                    , Html.input
+                        [ Html.Attributes.type_ "password"
+                        , Html.Events.onInput UpdatePassword
+                        ]
+                        []
                     ]
                 ]
             , Html.div [ Html.Attributes.class "input-field" ]
