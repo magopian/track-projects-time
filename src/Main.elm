@@ -20,7 +20,13 @@ type alias Model =
     , editProjectName : String
     , editDescription : String
     , editTimeSpent : String
+    , page : Page
     }
+
+
+type Page
+    = LoginForm
+    | LoggedIn Kinto.Client
 
 
 init : ( Model, Cmd Msg )
@@ -30,8 +36,10 @@ init =
       , editProjectName = ""
       , editDescription = ""
       , editTimeSpent = "1"
+      , page = LoginForm
       }
-    , getEntryList
+      -- , getEntryList client
+    , Cmd.none
     )
 
 
@@ -81,9 +89,18 @@ update msg model =
                         model.editDate
             in
             ( model
-            , client
-                |> Kinto.create recordResource data
-                |> Kinto.send EntryAdded
+            , case model.page of
+                LoggedIn client ->
+                    client
+                        |> Kinto.create recordResource data
+                        |> Kinto.send EntryAdded
+
+                LoginForm ->
+                    let
+                        _ =
+                            Debug.todo "No client!"
+                    in
+                    Cmd.none
             )
 
         EntryAdded (Ok entry) ->
@@ -104,7 +121,18 @@ update msg model =
             ( model, Cmd.none )
 
         DeleteEntry entryID ->
-            ( model, deleteEntry entryID )
+            ( model
+            , case model.page of
+                LoggedIn client ->
+                    deleteEntry client entryID
+
+                LoginForm ->
+                    let
+                        _ =
+                            Debug.todo "No client!"
+                    in
+                    Cmd.none
+            )
 
         EntryDeleted (Ok deletedEntry) ->
             ( { model
@@ -139,6 +167,51 @@ update msg model =
 
 view : Model -> Html.Html Msg
 view model =
+    case model.page of
+        LoginForm ->
+            viewLoginForm model
+
+        LoggedIn client ->
+            viewLoggedIn model
+
+
+viewLoginForm : Model -> Html.Html Msg
+viewLoginForm model =
+    Html.form []
+        [ Html.fieldset []
+            [ Html.legend [] [ Html.text "Kinto credentials" ]
+            , Html.div [ Html.Attributes.class "input-field" ]
+                [ Html.label []
+                    [ Html.text "Server URL"
+                    , Html.input [ Html.Attributes.type_ "text" ] []
+                    ]
+                ]
+            , Html.div [ Html.Attributes.class "input-field" ]
+                [ Html.label []
+                    [ Html.text "Username"
+                    , Html.input [ Html.Attributes.type_ "text" ] []
+                    ]
+                ]
+            , Html.div [ Html.Attributes.class "input-field" ]
+                [ Html.label []
+                    [ Html.text "Password"
+                    , Html.input [ Html.Attributes.type_ "password" ] []
+                    ]
+                ]
+            , Html.div [ Html.Attributes.class "input-field" ]
+                [ Html.input
+                    [ Html.Attributes.type_ "submit"
+                    , Html.Attributes.class "button"
+                    , Html.Attributes.value "Use this"
+                    ]
+                    []
+                ]
+            ]
+        ]
+
+
+viewLoggedIn : Model -> Html.Html Msg
+viewLoggedIn model =
     Html.div []
         [ Html.h1 [] [ Html.text "Time spent on projects" ]
         , Html.form
@@ -254,20 +327,13 @@ encodeData name description timeSpent date =
         ]
 
 
-client : Kinto.Client
-client =
-    Kinto.client
-        "https://kinto.agopian.info/v1/"
-        (Kinto.Basic "test" "test")
-
-
 recordResource : Kinto.Resource Entry
 recordResource =
     Kinto.recordResource "default" "track-projects-time" decodeEntry
 
 
-getEntryList : Cmd Msg
-getEntryList =
+getEntryList : Kinto.Client -> Cmd Msg
+getEntryList client =
     client
         |> Kinto.getList recordResource
         |> Kinto.sort [ "-date", "name" ]
@@ -298,8 +364,8 @@ decodeDeletedEntry =
         (Decode.field "deleted" Decode.bool)
 
 
-deleteEntry : String -> Cmd Msg
-deleteEntry entryID =
+deleteEntry : Kinto.Client -> String -> Cmd Msg
+deleteEntry client entryID =
     client
         |> Kinto.delete deletedRecordResource entryID
         |> Kinto.send EntryDeleted
