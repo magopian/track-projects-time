@@ -73,149 +73,134 @@ type Msg
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    case msg of
-        UpdateDate date ->
-            ( { model | editDate = date }, Cmd.none )
+    case model.page of
+        LoginForm ->
+            case msg of
+                UpdateServerURL serverURL ->
+                    ( { model | serverURL = serverURL }, Cmd.none )
 
-        UpdateProjectName name ->
-            ( { model | editProjectName = name }, Cmd.none )
+                UpdateUsername username ->
+                    ( { model | username = username }, Cmd.none )
 
-        UpdateDescription description ->
-            ( { model | editDescription = description }, Cmd.none )
+                UpdatePassword password ->
+                    ( { model | password = password }, Cmd.none )
 
-        UpdateTimeSpent timeSpent ->
-            ( { model | editTimeSpent = timeSpent }, Cmd.none )
+                UseLogin ->
+                    let
+                        client =
+                            Kinto.client model.serverURL (Kinto.Basic model.username model.password)
+                    in
+                    ( { model | page = LoggingIn client }
+                    , getEntryList client
+                    )
 
-        AddEntry ->
-            let
-                timeSpent =
-                    model.editTimeSpent
-                        |> String.toFloat
-                        |> Maybe.withDefault 0
+                message ->
+                    let
+                        _ =
+                            Debug.log "bad message for LoginForm page" message
+                    in
+                    ( model, Cmd.none )
 
-                data =
-                    encodeData
-                        model.editProjectName
-                        model.editDescription
-                        timeSpent
-                        model.editDate
-            in
-            ( model
-            , case model.page of
-                LoggedIn client ->
-                    client
+        LoggingIn client ->
+            case msg of
+                EntriesFetched (Ok entriesPager) ->
+                    ( { model | page = LoggedIn client, entries = entriesPager.objects }, Cmd.none )
+
+                EntriesFetched (Err err) ->
+                    let
+                        _ =
+                            Debug.log "Error while fetching the entries" err
+                    in
+                    ( model, Cmd.none )
+
+                message ->
+                    let
+                        _ =
+                            Debug.log "bad message for LoggingIn page" message
+                    in
+                    ( model, Cmd.none )
+
+        LoggedIn client ->
+            case msg of
+                UpdateDate date ->
+                    ( { model | editDate = date }, Cmd.none )
+
+                UpdateProjectName name ->
+                    ( { model | editProjectName = name }, Cmd.none )
+
+                UpdateDescription description ->
+                    ( { model | editDescription = description }, Cmd.none )
+
+                UpdateTimeSpent timeSpent ->
+                    ( { model | editTimeSpent = timeSpent }, Cmd.none )
+
+                AddEntry ->
+                    let
+                        timeSpent =
+                            model.editTimeSpent
+                                |> String.toFloat
+                                |> Maybe.withDefault 0
+
+                        data =
+                            encodeData
+                                model.editProjectName
+                                model.editDescription
+                                timeSpent
+                                model.editDate
+                    in
+                    ( model
+                    , client
                         |> Kinto.create recordResource data
                         |> Kinto.send EntryAdded
+                    )
 
-                LoggingIn _ ->
+                EntryAdded (Ok entry) ->
+                    let
+                        entries =
+                            [ entry ]
+                                ++ model.entries
+                                |> List.sortBy .date
+                                |> List.reverse
+                    in
+                    ( { model | entries = entries }, Cmd.none )
+
+                EntryAdded (Err err) ->
                     let
                         _ =
-                            Debug.todo "Not logged in!"
+                            Debug.log "Error while adding the entry" err
                     in
-                    Cmd.none
+                    ( model, Cmd.none )
 
-                LoginForm ->
+                DeleteEntry entryID ->
+                    ( model
+                    , deleteEntry client entryID
+                    )
+
+                EntryDeleted (Ok deletedEntry) ->
+                    ( { model
+                        | entries =
+                            model.entries
+                                |> List.filter (\e -> e.id /= deletedEntry.id)
+                      }
+                    , Cmd.none
+                    )
+
+                EntryDeleted (Err err) ->
                     let
                         _ =
-                            Debug.todo "No client!"
+                            Debug.log "Error while deleting the entry" err
                     in
-                    Cmd.none
-            )
+                    ( model, Cmd.none )
 
-        EntryAdded (Ok entry) ->
-            let
-                entries =
-                    [ entry ]
-                        ++ model.entries
-                        |> List.sortBy .date
-                        |> List.reverse
-            in
-            ( { model | entries = entries }, Cmd.none )
+                Logout ->
+                    ( { model | page = LoginForm, entries = [] }, Cmd.none )
 
-        EntryAdded (Err err) ->
-            let
-                _ =
-                    Debug.log "Error while adding the entry" err
-            in
-            ( model, Cmd.none )
-
-        DeleteEntry entryID ->
-            ( model
-            , case model.page of
-                LoggedIn client ->
-                    deleteEntry client entryID
-
-                LoggingIn _ ->
+                message ->
                     let
                         _ =
-                            Debug.todo "Not logged in!"
+                            Debug.log "bad message for LoggedIn page" message
                     in
-                    Cmd.none
-
-                LoginForm ->
-                    let
-                        _ =
-                            Debug.todo "No client!"
-                    in
-                    Cmd.none
-            )
-
-        EntryDeleted (Ok deletedEntry) ->
-            ( { model
-                | entries =
-                    model.entries
-                        |> List.filter (\e -> e.id /= deletedEntry.id)
-              }
-            , Cmd.none
-            )
-
-        EntryDeleted (Err err) ->
-            let
-                _ =
-                    Debug.log "Error while deleting the entry" err
-            in
-            ( model, Cmd.none )
-
-        EntriesFetched (Ok entriesPager) ->
-            let
-                kintoClient =
-                    case model.page of
-                        LoggingIn client ->
-                            client
-
-                        _ ->
-                            -- We shouldn't be in the case, ever
-                            Kinto.client model.serverURL (Kinto.Basic model.username model.password)
-            in
-            ( { model | page = LoggedIn kintoClient, entries = entriesPager.objects }, Cmd.none )
-
-        EntriesFetched (Err err) ->
-            let
-                _ =
-                    Debug.log "Error while fetching the entries" err
-            in
-            ( model, Cmd.none )
-
-        UpdateServerURL serverURL ->
-            ( { model | serverURL = serverURL }, Cmd.none )
-
-        UpdateUsername username ->
-            ( { model | username = username }, Cmd.none )
-
-        UpdatePassword password ->
-            ( { model | password = password }, Cmd.none )
-
-        UseLogin ->
-            let
-                client =
-                    Kinto.client model.serverURL (Kinto.Basic model.username model.password)
-            in
-            ( { model | page = LoggingIn client }
-            , getEntryList client
-            )
-
-        Logout ->
-            ( { model | page = LoginForm, entries = [] }, Cmd.none )
+                    ( model, Cmd.none )
 
 
 
@@ -226,21 +211,21 @@ view : Model -> Html.Html Msg
 view model =
     case model.page of
         LoginForm ->
-            viewLoginForm model
+            viewLoginForm model Nothing
 
         LoggingIn client ->
-            viewLoginForm model
+            viewLoginForm model <| Just client
 
         LoggedIn client ->
             viewLoggedIn client model
 
 
-viewLoginForm : Model -> Html.Html Msg
-viewLoginForm model =
+viewLoginForm : Model -> Maybe Kinto.Client -> Html.Html Msg
+viewLoginForm model maybeClient =
     let
         button =
-            case model.page of
-                LoggingIn _ ->
+            case maybeClient of
+                Just _ ->
                     Html.button
                         [ Html.Attributes.type_ "submit"
                         , Html.Attributes.class "button button-loader"
@@ -249,7 +234,7 @@ viewLoginForm model =
                         [ Html.text "Use these credentials"
                         ]
 
-                _ ->
+                Nothing ->
                     Html.button
                         [ Html.Attributes.type_ "submit"
                         , Html.Attributes.class "button"
