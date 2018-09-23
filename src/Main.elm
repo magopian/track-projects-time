@@ -362,8 +362,8 @@ viewLoggedIn client model =
                                             , Html.td [] [ Html.text entry.description ]
                                             , Html.td [] [ Html.text <| String.fromFloat entry.timeSpent ]
                                             , Html.td []
-                                                [ Html.button
-                                                    [ Html.Attributes.class "button-danger"
+                                                [ Html.a
+                                                    [ Html.Attributes.class "button button-danger"
                                                     , Html.Events.onClick <| DeleteEntry entry.id
                                                     ]
                                                     [ Html.text "Remove this entry" ]
