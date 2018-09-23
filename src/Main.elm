@@ -210,21 +210,10 @@ viewLoginForm model maybeClient =
         button =
             case maybeClient of
                 Just _ ->
-                    Html.button
-                        [ Html.Attributes.type_ "submit"
-                        , Html.Attributes.class "button button-loader"
-                        , Html.Attributes.disabled True
-                        ]
-                        [ Html.text "Use these credentials"
-                        ]
+                    loadingButton "Use these credentials" Loading
 
                 Nothing ->
-                    Html.button
-                        [ Html.Attributes.type_ "submit"
-                        , Html.Attributes.class "button"
-                        ]
-                        [ Html.text "Use these credentials"
-                        ]
+                    loadingButton "Use these credentials" NotLoading
     in
     Html.form
         [ Html.Events.onSubmit UseLogin
@@ -328,13 +317,7 @@ viewLoggedIn client model =
                                 []
                             ]
                         , Html.td []
-                            [ Html.button
-                                [ Html.Attributes.type_ "submit"
-                                , Html.Attributes.class "button"
-                                ]
-                                [ Html.text "Add this entry"
-                                ]
-                            ]
+                            [ loadingButton "Add this entry" NotLoading ]
                         ]
                      ]
                         ++ (model.entries
@@ -346,12 +329,7 @@ viewLoggedIn client model =
                                             , Html.td [] [ Html.text entry.description ]
                                             , Html.td [] [ Html.text <| String.fromFloat entry.timeSpent ]
                                             , Html.td []
-                                                [ Html.a
-                                                    [ Html.Attributes.class "button button-danger"
-                                                    , Html.Events.onClick <| DeleteEntry entry.id
-                                                    ]
-                                                    [ Html.text "Remove this entry" ]
-                                                ]
+                                                [ loadingDangerButtonLink "Remove this entry" NotLoading <| DeleteEntry entry.id ]
                                             ]
                                     )
                            )
@@ -384,6 +362,50 @@ viewUserInfo { baseUrl, headers } username =
             ]
             [ Html.text "logout" ]
         ]
+
+
+type LoadingState
+    = Loading
+    | NotLoading
+
+
+loadingButton : String -> LoadingState -> Html.Html Msg
+loadingButton label loadingState =
+    let
+        loadingAttrs =
+            case loadingState of
+                Loading ->
+                    [ Html.Attributes.type_ "submit"
+                    , Html.Attributes.class "button button-loader"
+                    , Html.Attributes.disabled True
+                    ]
+
+                NotLoading ->
+                    [ Html.Attributes.class "button" ]
+    in
+    Html.button
+        loadingAttrs
+        [ Html.text label ]
+
+
+loadingDangerButtonLink : String -> LoadingState -> Msg -> Html.Html Msg
+loadingDangerButtonLink label loadingState msg =
+    let
+        loadingAttrs =
+            case loadingState of
+                Loading ->
+                    [ Html.Attributes.style "opacity" "0.5"
+                    , Html.Attributes.class "button button-danger button-loader"
+                    ]
+
+                NotLoading ->
+                    [ Html.Events.onClick msg
+                    , Html.Attributes.class "button button-danger"
+                    ]
+    in
+    Html.a
+        loadingAttrs
+        [ Html.text label ]
 
 
 
