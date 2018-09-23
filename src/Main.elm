@@ -15,37 +15,30 @@ import Task
 
 
 type alias Model =
-    { entries : List Entry
-    , editDate : String
-    , editProjectName : String
-    , editDescription : String
-    , editTimeSpent : String
-    , page : Page
+    { entries : KintoData (List Entry)
+    , newEntryDate : String
+    , newEntryProjectName : String
+    , newEntryDescription : String
+    , newEntryTimeSpent : String
+    , newEntryKintoData : KintoData Entry
     , serverURL : String
     , username : String
     , password : String
     }
 
 
-type Page
-    = LoginForm
-    | LoggingIn Kinto.Client
-    | LoggedIn Kinto.Client
-
-
 init : ( Model, Cmd Msg )
 init =
-    ( { entries = []
-      , editDate = ""
-      , editProjectName = ""
-      , editDescription = ""
-      , editTimeSpent = "1"
+    ( { entries = NotRequested
+      , newEntryDate = ""
+      , newEntryProjectName = ""
+      , newEntryDescription = ""
+      , newEntryTimeSpent = "1"
+      , newEntryKintoData = NotRequested
       , serverURL = ""
       , username = ""
       , password = ""
-      , page = LoginForm
       }
-      -- , getEntryList client
     , Cmd.none
     )
 
@@ -73,118 +66,136 @@ type Msg
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    case ( msg, model.page ) of
+    case msg of
         -- LOGINFORM --
-        ( UpdateServerURL serverURL, LoginForm ) ->
+        UpdateServerURL serverURL ->
             ( { model | serverURL = serverURL }, Cmd.none )
 
-        ( UpdateUsername username, LoginForm ) ->
+        UpdateUsername username ->
             ( { model | username = username }, Cmd.none )
 
-        ( UpdatePassword password, LoginForm ) ->
+        UpdatePassword password ->
             ( { model | password = password }, Cmd.none )
 
-        ( UseLogin, LoginForm ) ->
+        UseLogin ->
             let
                 client =
                     Kinto.client model.serverURL (Kinto.Basic model.username model.password)
             in
-            ( { model | page = LoggingIn client }
+            ( { model | entries = Requested }
             , getEntryList client
             )
 
-        -- LOGGINGIN --
-        ( EntriesFetched (Ok entriesPager), LoggingIn client ) ->
-            ( { model | page = LoggedIn client, entries = entriesPager.objects }, Cmd.none )
+        EntriesFetched (Ok entriesPager) ->
+            ( { model | entries = Received entriesPager.objects }, Cmd.none )
 
-        ( EntriesFetched (Err err), LoggingIn client ) ->
+        EntriesFetched (Err err) ->
             let
                 _ =
                     Debug.log "Error while fetching the entries" err
             in
-            ( model, Cmd.none )
+            ( { model | entries = Failed err }, Cmd.none )
 
         -- LOGGEDIN --
-        ( UpdateDate date, LoggedIn client ) ->
-            ( { model | editDate = date }, Cmd.none )
+        UpdateDate date ->
+            ( { model | newEntryDate = date }, Cmd.none )
 
-        ( UpdateProjectName name, LoggedIn client ) ->
-            ( { model | editProjectName = name }, Cmd.none )
+        UpdateProjectName name ->
+            ( { model | newEntryProjectName = name }, Cmd.none )
 
-        ( UpdateDescription description, LoggedIn client ) ->
-            ( { model | editDescription = description }, Cmd.none )
+        UpdateDescription description ->
+            ( { model | newEntryDescription = description }, Cmd.none )
 
-        ( UpdateTimeSpent timeSpent, LoggedIn client ) ->
-            ( { model | editTimeSpent = timeSpent }, Cmd.none )
+        UpdateTimeSpent timeSpent ->
+            ( { model | newEntryTimeSpent = timeSpent }, Cmd.none )
 
-        ( AddEntry, LoggedIn client ) ->
+        AddEntry ->
             let
                 timeSpent =
-                    model.editTimeSpent
+                    model.newEntryTimeSpent
                         |> String.toFloat
                         |> Maybe.withDefault 0
 
                 data =
                     encodeData
-                        model.editProjectName
-                        model.editDescription
+                        model.newEntryProjectName
+                        model.newEntryDescription
                         timeSpent
-                        model.editDate
+                        model.newEntryDate
+
+                client =
+                    Kinto.client model.serverURL (Kinto.Basic model.username model.password)
             in
-            ( model
+            ( { model | newEntryKintoData = Requested }
             , client
                 |> Kinto.create recordResource data
                 |> Kinto.send EntryAdded
             )
 
-        ( EntryAdded (Ok entry), LoggedIn client ) ->
+        EntryAdded (Ok entry) ->
             let
                 entries =
-                    [ entry ]
-                        ++ model.entries
-                        |> List.sortBy .date
-                        |> List.reverse
+                    case model.entries of
+                        Received entryList ->
+                            [ entry ]
+                                ++ entryList
+                                |> List.sortBy .date
+                                |> List.reverse
+                                |> Received
+
+                        _ ->
+                            model.entries
             in
-            ( { model | entries = entries }, Cmd.none )
-
-        ( EntryAdded (Err err), LoggedIn client ) ->
-            let
-                _ =
-                    Debug.log "Error while adding the entry" err
-            in
-            ( model, Cmd.none )
-
-        ( DeleteEntry entryID, LoggedIn client ) ->
-            ( model
-            , deleteEntry client entryID
-            )
-
-        ( EntryDeleted (Ok deletedEntry), LoggedIn client ) ->
             ( { model
-                | entries =
-                    model.entries
-                        |> List.filter (\e -> e.id /= deletedEntry.id)
+                | entries = entries
+
+                -- We're going straight back to "NotRequested" as we added the entry to the list
+                , newEntryKintoData = NotRequested
               }
             , Cmd.none
             )
 
-        ( EntryDeleted (Err err), LoggedIn client ) ->
+        EntryAdded (Err err) ->
+            let
+                _ =
+                    Debug.log "Error while adding the entry" err
+            in
+            ( { model | newEntryKintoData = Failed err }
+            , Cmd.none
+            )
+
+        DeleteEntry entryID ->
+            let
+                client =
+                    Kinto.client model.serverURL (Kinto.Basic model.username model.password)
+            in
+            ( model
+            , deleteEntry client entryID
+            )
+
+        EntryDeleted (Ok deletedEntry) ->
+            let
+                entries =
+                    case model.entries of
+                        Received entryList ->
+                            entryList
+                                |> List.filter (\e -> e.id /= deletedEntry.id)
+                                |> Received
+
+                        _ ->
+                            model.entries
+            in
+            ( { model | entries = entries }, Cmd.none )
+
+        EntryDeleted (Err err) ->
             let
                 _ =
                     Debug.log "Error while deleting the entry" err
             in
             ( model, Cmd.none )
 
-        ( Logout, LoggedIn client ) ->
-            ( { model | page = LoginForm, entries = [] }, Cmd.none )
-
-        -- NOT FOUND --
-        ( _, _ ) ->
-            let
-                _ =
-                    Debug.todo "bad message for page"
-            in
-            ( model, Cmd.none )
+        Logout ->
+            ( { model | entries = NotRequested }, Cmd.none )
 
 
 
@@ -193,26 +204,23 @@ update msg model =
 
 view : Model -> Html.Html Msg
 view model =
-    case model.page of
-        LoginForm ->
-            viewLoginForm model Nothing
+    case model.entries of
+        Received entries ->
+            viewEntryList entries model
 
-        LoggingIn client ->
-            viewLoginForm model <| Just client
-
-        LoggedIn client ->
-            viewLoggedIn client model
+        _ ->
+            viewLoginForm model
 
 
-viewLoginForm : Model -> Maybe Kinto.Client -> Html.Html Msg
-viewLoginForm model maybeClient =
+viewLoginForm : Model -> Html.Html Msg
+viewLoginForm model =
     let
         button =
-            case maybeClient of
-                Just _ ->
+            case model.entries of
+                Requested ->
                     loadingButton "Use these credentials" Loading
 
-                Nothing ->
+                _ ->
                     loadingButton "Use these credentials" NotLoading
     in
     Html.form
@@ -262,10 +270,10 @@ viewLoginForm model maybeClient =
         ]
 
 
-viewLoggedIn : Kinto.Client -> Model -> Html.Html Msg
-viewLoggedIn client model =
+viewEntryList : List Entry -> Model -> Html.Html Msg
+viewEntryList entries model =
     Html.div []
-        [ viewUserInfo client model.username
+        [ viewUserInfo model.serverURL model.username
         , Html.h1 [ Html.Attributes.style "padding-top" "1em" ] [ Html.text "Time spent on projects" ]
         , Html.form
             [ Html.Events.onSubmit AddEntry ]
@@ -284,7 +292,7 @@ viewLoggedIn client model =
                                 [ Html.Attributes.type_ "date"
                                 , Html.Attributes.name "date"
                                 , Html.Events.onInput UpdateDate
-                                , Html.Attributes.value model.editDate
+                                , Html.Attributes.value model.newEntryDate
                                 ]
                                 []
                             ]
@@ -293,7 +301,7 @@ viewLoggedIn client model =
                                 [ Html.Attributes.type_ "text"
                                 , Html.Attributes.name "project name"
                                 , Html.Events.onInput UpdateProjectName
-                                , Html.Attributes.value model.editProjectName
+                                , Html.Attributes.value model.newEntryProjectName
                                 ]
                                 []
                             ]
@@ -301,7 +309,7 @@ viewLoggedIn client model =
                             [ Html.textarea
                                 [ Html.Attributes.name "description"
                                 , Html.Events.onInput UpdateDescription
-                                , Html.Attributes.value model.editDescription
+                                , Html.Attributes.value model.newEntryDescription
                                 ]
                                 []
                             ]
@@ -312,15 +320,22 @@ viewLoggedIn client model =
                                 , Html.Attributes.step "0.25"
                                 , Html.Attributes.min "0"
                                 , Html.Events.onInput UpdateTimeSpent
-                                , Html.Attributes.value model.editTimeSpent
+                                , Html.Attributes.value model.newEntryTimeSpent
                                 ]
                                 []
                             ]
                         , Html.td []
-                            [ loadingButton "Add this entry" NotLoading ]
+                            [ loadingButton "Add this entry" <|
+                                case model.newEntryKintoData of
+                                    Requested ->
+                                        Loading
+
+                                    _ ->
+                                        NotLoading
+                            ]
                         ]
                      ]
-                        ++ (model.entries
+                        ++ (entries
                                 |> List.map
                                     (\entry ->
                                         Html.tr []
@@ -339,8 +354,8 @@ viewLoggedIn client model =
         ]
 
 
-viewUserInfo : Kinto.Client -> String -> Html.Html Msg
-viewUserInfo { baseUrl, headers } username =
+viewUserInfo : String -> String -> Html.Html Msg
+viewUserInfo serverURL username =
     Html.div
         [ Html.Attributes.style "position" "fixed"
         , Html.Attributes.style "top" "0"
@@ -354,7 +369,7 @@ viewUserInfo { baseUrl, headers } username =
         [ Html.text "Connected as "
         , Html.strong [] [ Html.text username ]
         , Html.text " on "
-        , Html.strong [] [ Html.text baseUrl ]
+        , Html.strong [] [ Html.text serverURL ]
         , Html.text " "
         , Html.button
             [ Html.Attributes.class "button-sm"
@@ -410,6 +425,16 @@ loadingDangerButtonLink label loadingState msg =
 
 
 ---- DECODERS ----
+
+
+type KintoData a
+    = NotRequested
+    | Requested
+    | Received a
+    | Failed Kinto.Error
+
+
+
 -- Entry --
 
 
