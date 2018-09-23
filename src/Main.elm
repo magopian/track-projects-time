@@ -73,134 +73,118 @@ type Msg
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    case model.page of
-        LoginForm ->
-            case msg of
-                UpdateServerURL serverURL ->
-                    ( { model | serverURL = serverURL }, Cmd.none )
+    case ( msg, model.page ) of
+        -- LOGINFORM --
+        ( UpdateServerURL serverURL, LoginForm ) ->
+            ( { model | serverURL = serverURL }, Cmd.none )
 
-                UpdateUsername username ->
-                    ( { model | username = username }, Cmd.none )
+        ( UpdateUsername username, LoginForm ) ->
+            ( { model | username = username }, Cmd.none )
 
-                UpdatePassword password ->
-                    ( { model | password = password }, Cmd.none )
+        ( UpdatePassword password, LoginForm ) ->
+            ( { model | password = password }, Cmd.none )
 
-                UseLogin ->
-                    let
-                        client =
-                            Kinto.client model.serverURL (Kinto.Basic model.username model.password)
-                    in
-                    ( { model | page = LoggingIn client }
-                    , getEntryList client
-                    )
+        ( UseLogin, LoginForm ) ->
+            let
+                client =
+                    Kinto.client model.serverURL (Kinto.Basic model.username model.password)
+            in
+            ( { model | page = LoggingIn client }
+            , getEntryList client
+            )
 
-                message ->
-                    let
-                        _ =
-                            Debug.log "bad message for LoginForm page" message
-                    in
-                    ( model, Cmd.none )
+        -- LOGGINGIN --
+        ( EntriesFetched (Ok entriesPager), LoggingIn client ) ->
+            ( { model | page = LoggedIn client, entries = entriesPager.objects }, Cmd.none )
 
-        LoggingIn client ->
-            case msg of
-                EntriesFetched (Ok entriesPager) ->
-                    ( { model | page = LoggedIn client, entries = entriesPager.objects }, Cmd.none )
+        ( EntriesFetched (Err err), LoggingIn client ) ->
+            let
+                _ =
+                    Debug.log "Error while fetching the entries" err
+            in
+            ( model, Cmd.none )
 
-                EntriesFetched (Err err) ->
-                    let
-                        _ =
-                            Debug.log "Error while fetching the entries" err
-                    in
-                    ( model, Cmd.none )
+        -- LOGGEDIN --
+        ( UpdateDate date, LoggedIn client ) ->
+            ( { model | editDate = date }, Cmd.none )
 
-                message ->
-                    let
-                        _ =
-                            Debug.log "bad message for LoggingIn page" message
-                    in
-                    ( model, Cmd.none )
+        ( UpdateProjectName name, LoggedIn client ) ->
+            ( { model | editProjectName = name }, Cmd.none )
 
-        LoggedIn client ->
-            case msg of
-                UpdateDate date ->
-                    ( { model | editDate = date }, Cmd.none )
+        ( UpdateDescription description, LoggedIn client ) ->
+            ( { model | editDescription = description }, Cmd.none )
 
-                UpdateProjectName name ->
-                    ( { model | editProjectName = name }, Cmd.none )
+        ( UpdateTimeSpent timeSpent, LoggedIn client ) ->
+            ( { model | editTimeSpent = timeSpent }, Cmd.none )
 
-                UpdateDescription description ->
-                    ( { model | editDescription = description }, Cmd.none )
+        ( AddEntry, LoggedIn client ) ->
+            let
+                timeSpent =
+                    model.editTimeSpent
+                        |> String.toFloat
+                        |> Maybe.withDefault 0
 
-                UpdateTimeSpent timeSpent ->
-                    ( { model | editTimeSpent = timeSpent }, Cmd.none )
+                data =
+                    encodeData
+                        model.editProjectName
+                        model.editDescription
+                        timeSpent
+                        model.editDate
+            in
+            ( model
+            , client
+                |> Kinto.create recordResource data
+                |> Kinto.send EntryAdded
+            )
 
-                AddEntry ->
-                    let
-                        timeSpent =
-                            model.editTimeSpent
-                                |> String.toFloat
-                                |> Maybe.withDefault 0
+        ( EntryAdded (Ok entry), LoggedIn client ) ->
+            let
+                entries =
+                    [ entry ]
+                        ++ model.entries
+                        |> List.sortBy .date
+                        |> List.reverse
+            in
+            ( { model | entries = entries }, Cmd.none )
 
-                        data =
-                            encodeData
-                                model.editProjectName
-                                model.editDescription
-                                timeSpent
-                                model.editDate
-                    in
-                    ( model
-                    , client
-                        |> Kinto.create recordResource data
-                        |> Kinto.send EntryAdded
-                    )
+        ( EntryAdded (Err err), LoggedIn client ) ->
+            let
+                _ =
+                    Debug.log "Error while adding the entry" err
+            in
+            ( model, Cmd.none )
 
-                EntryAdded (Ok entry) ->
-                    let
-                        entries =
-                            [ entry ]
-                                ++ model.entries
-                                |> List.sortBy .date
-                                |> List.reverse
-                    in
-                    ( { model | entries = entries }, Cmd.none )
+        ( DeleteEntry entryID, LoggedIn client ) ->
+            ( model
+            , deleteEntry client entryID
+            )
 
-                EntryAdded (Err err) ->
-                    let
-                        _ =
-                            Debug.log "Error while adding the entry" err
-                    in
-                    ( model, Cmd.none )
+        ( EntryDeleted (Ok deletedEntry), LoggedIn client ) ->
+            ( { model
+                | entries =
+                    model.entries
+                        |> List.filter (\e -> e.id /= deletedEntry.id)
+              }
+            , Cmd.none
+            )
 
-                DeleteEntry entryID ->
-                    ( model
-                    , deleteEntry client entryID
-                    )
+        ( EntryDeleted (Err err), LoggedIn client ) ->
+            let
+                _ =
+                    Debug.log "Error while deleting the entry" err
+            in
+            ( model, Cmd.none )
 
-                EntryDeleted (Ok deletedEntry) ->
-                    ( { model
-                        | entries =
-                            model.entries
-                                |> List.filter (\e -> e.id /= deletedEntry.id)
-                      }
-                    , Cmd.none
-                    )
+        ( Logout, LoggedIn client ) ->
+            ( { model | page = LoginForm, entries = [] }, Cmd.none )
 
-                EntryDeleted (Err err) ->
-                    let
-                        _ =
-                            Debug.log "Error while deleting the entry" err
-                    in
-                    ( model, Cmd.none )
-
-                Logout ->
-                    ( { model | page = LoginForm, entries = [] }, Cmd.none )
-
-                message ->
-                    let
-                        _ =
-                            Debug.log "bad message for LoggedIn page" message
-                    in
-                    ( model, Cmd.none )
+        -- NOT FOUND --
+        ( _, _ ) ->
+            let
+                _ =
+                    Debug.todo "bad message for page"
+            in
+            ( model, Cmd.none )
 
 
 
