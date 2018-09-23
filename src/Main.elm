@@ -213,6 +213,7 @@ viewLoginForm model =
                     [ Html.text "Server URL"
                     , Html.input
                         [ Html.Attributes.type_ "text"
+                        , Html.Attributes.name "serverURL"
                         , Html.Events.onInput UpdateServerURL
                         ]
                         []
@@ -223,6 +224,7 @@ viewLoginForm model =
                     [ Html.text "Username"
                     , Html.input
                         [ Html.Attributes.type_ "text"
+                        , Html.Attributes.name "username"
                         , Html.Events.onInput UpdateUsername
                         ]
                         []
@@ -269,6 +271,7 @@ viewLoggedIn model =
                         [ Html.td []
                             [ Html.input
                                 [ Html.Attributes.type_ "date"
+                                , Html.Attributes.name "date"
                                 , Html.Events.onInput UpdateDate
                                 , Html.Attributes.value model.editDate
                                 ]
@@ -277,6 +280,7 @@ viewLoggedIn model =
                         , Html.td []
                             [ Html.input
                                 [ Html.Attributes.type_ "text"
+                                , Html.Attributes.name "name"
                                 , Html.Events.onInput UpdateProjectName
                                 , Html.Attributes.value model.editProjectName
                                 ]
@@ -284,7 +288,8 @@ viewLoggedIn model =
                             ]
                         , Html.td []
                             [ Html.textarea
-                                [ Html.Events.onInput UpdateDescription
+                                [ Html.Attributes.name "description"
+                                , Html.Events.onInput UpdateDescription
                                 , Html.Attributes.value model.editDescription
                                 ]
                                 []
@@ -292,6 +297,7 @@ viewLoggedIn model =
                         , Html.td []
                             [ Html.input
                                 [ Html.Attributes.type_ "number"
+                                , Html.Attributes.name "timeSpent"
                                 , Html.Attributes.step "0.25"
                                 , Html.Attributes.min "0"
                                 , Html.Events.onInput UpdateTimeSpent
