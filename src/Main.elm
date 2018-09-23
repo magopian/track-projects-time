@@ -67,6 +67,7 @@ type Msg
     | UpdateUsername String
     | UpdatePassword String
     | UseLogin
+    | Logout
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -186,6 +187,9 @@ update msg model =
             in
             ( { model | page = LoggedIn client }, getEntryList client )
 
+        Logout ->
+            ( { model | page = LoginForm, entries = [] }, Cmd.none )
+
 
 
 ---- VIEW ----
@@ -198,7 +202,7 @@ view model =
             viewLoginForm model
 
         LoggedIn client ->
-            viewLoggedIn model
+            viewLoggedIn client model
 
 
 viewLoginForm : Model -> Html.Html Msg
@@ -214,6 +218,7 @@ viewLoginForm model =
                     , Html.input
                         [ Html.Attributes.type_ "text"
                         , Html.Attributes.name "serverURL"
+                        , Html.Attributes.value model.serverURL
                         , Html.Events.onInput UpdateServerURL
                         ]
                         []
@@ -225,6 +230,7 @@ viewLoginForm model =
                     , Html.input
                         [ Html.Attributes.type_ "text"
                         , Html.Attributes.name "username"
+                        , Html.Attributes.value model.username
                         , Html.Events.onInput UpdateUsername
                         ]
                         []
@@ -235,6 +241,7 @@ viewLoginForm model =
                     [ Html.text "Password"
                     , Html.input
                         [ Html.Attributes.type_ "password"
+                        , Html.Attributes.value model.password
                         , Html.Events.onInput UpdatePassword
                         ]
                         []
@@ -244,7 +251,7 @@ viewLoginForm model =
                 [ Html.input
                     [ Html.Attributes.type_ "submit"
                     , Html.Attributes.class "button"
-                    , Html.Attributes.value "Use this"
+                    , Html.Attributes.value "Use these credentials"
                     ]
                     []
                 ]
@@ -252,10 +259,11 @@ viewLoginForm model =
         ]
 
 
-viewLoggedIn : Model -> Html.Html Msg
-viewLoggedIn model =
+viewLoggedIn : Kinto.Client -> Model -> Html.Html Msg
+viewLoggedIn client model =
     Html.div []
-        [ Html.h1 [] [ Html.text "Time spent on projects" ]
+        [ viewUserInfo client model.username
+        , Html.h1 [ Html.Attributes.style "padding-top" "1em" ] [ Html.text "Time spent on projects" ]
         , Html.form
             [ Html.Events.onSubmit AddEntry ]
             [ Html.table [ Html.Attributes.style "width" "100%" ]
@@ -280,7 +288,7 @@ viewLoggedIn model =
                         , Html.td []
                             [ Html.input
                                 [ Html.Attributes.type_ "text"
-                                , Html.Attributes.name "name"
+                                , Html.Attributes.name "project name"
                                 , Html.Events.onInput UpdateProjectName
                                 , Html.Attributes.value model.editProjectName
                                 ]
@@ -336,6 +344,31 @@ viewLoggedIn model =
                     )
                 ]
             ]
+        ]
+
+
+viewUserInfo : Kinto.Client -> String -> Html.Html Msg
+viewUserInfo { baseUrl, headers } username =
+    Html.div
+        [ Html.Attributes.style "position" "fixed"
+        , Html.Attributes.style "top" "0"
+        , Html.Attributes.style "left" "0"
+        , Html.Attributes.style "right" "0"
+        , Html.Attributes.style "padding" ".2em 1.15em"
+        , Html.Attributes.style "z-index" "999"
+        , Html.Attributes.style "text-align" "right"
+        , Html.Attributes.class "bg-secondary"
+        ]
+        [ Html.text "Connected as "
+        , Html.strong [] [ Html.text username ]
+        , Html.text " on "
+        , Html.strong [] [ Html.text baseUrl ]
+        , Html.text " "
+        , Html.button
+            [ Html.Attributes.class "button-sm"
+            , Html.Events.onClick Logout
+            ]
+            [ Html.text "logout" ]
         ]
 
 
