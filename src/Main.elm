@@ -29,6 +29,7 @@ type alias Model =
 
 type Page
     = LoginForm
+    | LoggingIn Kinto.Client
     | LoggedIn Kinto.Client
 
 
@@ -106,6 +107,13 @@ update msg model =
                         |> Kinto.create recordResource data
                         |> Kinto.send EntryAdded
 
+                LoggingIn _ ->
+                    let
+                        _ =
+                            Debug.todo "Not logged in!"
+                    in
+                    Cmd.none
+
                 LoginForm ->
                     let
                         _ =
@@ -137,6 +145,13 @@ update msg model =
                 LoggedIn client ->
                     deleteEntry client entryID
 
+                LoggingIn _ ->
+                    let
+                        _ =
+                            Debug.todo "Not logged in!"
+                    in
+                    Cmd.none
+
                 LoginForm ->
                     let
                         _ =
@@ -162,7 +177,17 @@ update msg model =
             ( model, Cmd.none )
 
         EntriesFetched (Ok entriesPager) ->
-            ( { model | entries = entriesPager.objects }, Cmd.none )
+            let
+                kintoClient =
+                    case model.page of
+                        LoggingIn client ->
+                            client
+
+                        _ ->
+                            -- We shouldn't be in the case, ever
+                            Kinto.client model.serverURL (Kinto.Basic model.username model.password)
+            in
+            ( { model | page = LoggedIn kintoClient, entries = entriesPager.objects }, Cmd.none )
 
         EntriesFetched (Err err) ->
             let
@@ -185,7 +210,9 @@ update msg model =
                 client =
                     Kinto.client model.serverURL (Kinto.Basic model.username model.password)
             in
-            ( { model | page = LoggedIn client }, getEntryList client )
+            ( { model | page = LoggingIn client }
+            , getEntryList client
+            )
 
         Logout ->
             ( { model | page = LoginForm, entries = [] }, Cmd.none )
@@ -201,12 +228,35 @@ view model =
         LoginForm ->
             viewLoginForm model
 
+        LoggingIn client ->
+            viewLoginForm model
+
         LoggedIn client ->
             viewLoggedIn client model
 
 
 viewLoginForm : Model -> Html.Html Msg
 viewLoginForm model =
+    let
+        button =
+            case model.page of
+                LoggingIn _ ->
+                    Html.button
+                        [ Html.Attributes.type_ "submit"
+                        , Html.Attributes.class "button button-loader"
+                        , Html.Attributes.disabled True
+                        ]
+                        [ Html.text "Use these credentials"
+                        ]
+
+                _ ->
+                    Html.button
+                        [ Html.Attributes.type_ "submit"
+                        , Html.Attributes.class "button"
+                        ]
+                        [ Html.text "Use these credentials"
+                        ]
+    in
     Html.form
         [ Html.Events.onSubmit UseLogin
         ]
@@ -248,12 +298,7 @@ viewLoginForm model =
                     ]
                 ]
             , Html.div [ Html.Attributes.class "input-field" ]
-                [ Html.input
-                    [ Html.Attributes.type_ "submit"
-                    , Html.Attributes.class "button"
-                    , Html.Attributes.value "Use these credentials"
-                    ]
-                    []
+                [ button
                 ]
             ]
         ]
@@ -314,12 +359,12 @@ viewLoggedIn client model =
                                 []
                             ]
                         , Html.td []
-                            [ Html.input
+                            [ Html.button
                                 [ Html.Attributes.type_ "submit"
                                 , Html.Attributes.class "button"
-                                , Html.Attributes.value "Add this entry"
                                 ]
-                                []
+                                [ Html.text "Add this entry"
+                                ]
                             ]
                         ]
                      ]
