@@ -1,6 +1,7 @@
 module Main exposing (Model, Msg(..), init, main, update, view)
 
 import Browser
+import Browser.Navigation
 import Html
 import Html.Attributes
 import Html.Events
@@ -8,6 +9,7 @@ import Json.Decode as Decode
 import Json.Encode as Encode
 import Kinto
 import Task
+import Url
 
 
 
@@ -15,7 +17,8 @@ import Task
 
 
 type alias Model =
-    { entries : KintoData (List Entry)
+    { navKey : Browser.Navigation.Key
+    , entries : KintoData (List Entry)
     , newEntry : NewEntry
     , newEntryKintoData : KintoData Entry
     , loginForm : LoginForm
@@ -39,9 +42,10 @@ type alias LoginForm =
     }
 
 
-init : ( Model, Cmd Msg )
-init =
-    ( { entries = NotRequested
+init : flags -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
+init flags url key =
+    ( { navKey = key
+      , entries = NotRequested
       , newEntry =
             { date = ""
             , name = ""
@@ -66,7 +70,9 @@ init =
 
 
 type Msg
-    = UpdateEntry NewEntry
+    = UrlChanged Url.Url
+    | LinkClicked Browser.UrlRequest
+    | UpdateEntry NewEntry
     | AddEntry
     | EntryAdded (Result Kinto.Error Entry)
     | DeleteEntry String
@@ -81,6 +87,17 @@ type Msg
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        LinkClicked urlRequest ->
+            case urlRequest of
+                Browser.Internal url ->
+                    ( model, Browser.Navigation.pushUrl model.navKey (Url.toString url) )
+
+                Browser.External href ->
+                    ( model, Browser.Navigation.load href )
+
+        UrlChanged url ->
+            ( model, Cmd.none )
+
         -- LOGINFORM --
         UpdateLoginForm loginForm ->
             ( { model | loginForm = loginForm }, Cmd.none )
@@ -221,9 +238,11 @@ update msg model =
 ---- VIEW ----
 
 
-view : Model -> Html.Html Msg
+view : Model -> Browser.Document Msg
 view model =
-    Html.div []
+    { title = "Track projects time"
+    , body =
+        [ Html.div []
         [ viewGithubLink
         , viewErrorList model.errorList
         , case model.entries of
@@ -233,6 +252,8 @@ view model =
             _ ->
                 viewLoginForm model
         ]
+        ]
+    }
 
 
 viewLoginForm : Model -> Html.Html Msg
@@ -592,9 +613,11 @@ deleteEntry client entryID =
 
 main : Program () Model Msg
 main =
-    Browser.element
+    Browser.application
         { view = view
-        , init = \_ -> init
+        , init = init
         , update = update
         , subscriptions = always Sub.none
+        , onUrlRequest = LinkClicked
+        , onUrlChange = UrlChanged
         }
