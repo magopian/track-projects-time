@@ -25,6 +25,7 @@ type alias Model =
     , username : String
     , password : String
     , deleteEntryList : List String -- List of entry IDs being deleted
+    , errorList : List String
     }
 
 
@@ -40,6 +41,7 @@ init =
       , username = ""
       , password = ""
       , deleteEntryList = []
+      , errorList = []
       }
     , Cmd.none
     )
@@ -64,6 +66,7 @@ type Msg
     | UpdatePassword String
     | UseLogin
     | Logout
+    | DiscardError Int
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -92,11 +95,12 @@ update msg model =
             ( { model | entries = Received entriesPager.objects }, Cmd.none )
 
         EntriesFetched (Err err) ->
-            let
-                _ =
-                    Debug.log "Error while fetching the entries" err
-            in
-            ( { model | entries = Failed err }, Cmd.none )
+            ( { model
+                | entries = Failed err
+                , errorList = [ Kinto.errorToString err ] ++ model.errorList
+              }
+            , Cmd.none
+            )
 
         -- LOGGEDIN --
         UpdateDate date ->
@@ -158,11 +162,10 @@ update msg model =
             )
 
         EntryAdded (Err err) ->
-            let
-                _ =
-                    Debug.log "Error while adding the entry" err
-            in
-            ( { model | newEntryKintoData = Failed err }
+            ( { model
+                | newEntryKintoData = Failed err
+                , errorList = [ Kinto.errorToString err ] ++ model.errorList
+              }
             , Cmd.none
             )
 
@@ -200,17 +203,24 @@ update msg model =
 
         EntryDeleted entryID (Err err) ->
             let
-                _ =
-                    Debug.log "Error while deleting the entry" err
-
                 deleteEntryList =
                     model.deleteEntryList
                         |> List.filter (\id -> id /= entryID)
             in
-            ( { model | deleteEntryList = deleteEntryList }, Cmd.none )
+            ( { model
+                | deleteEntryList = deleteEntryList
+                , errorList = [ Kinto.errorToString err ] ++ model.errorList
+              }
+            , Cmd.none
+            )
 
         Logout ->
             ( { model | entries = NotRequested }, Cmd.none )
+
+        DiscardError index ->
+            ( { model | errorList = List.take index model.errorList ++ List.drop (index + 1) model.errorList }
+            , Cmd.none
+            )
 
 
 
@@ -219,12 +229,15 @@ update msg model =
 
 view : Model -> Html.Html Msg
 view model =
-    case model.entries of
-        Received entries ->
-            viewEntryList entries model
+    Html.div []
+        [ viewErrorList model.errorList
+        , case model.entries of
+            Received entries ->
+                viewEntryList entries model
 
-        _ ->
-            viewLoginForm model
+            _ ->
+                viewLoginForm model
+        ]
 
 
 viewLoginForm : Model -> Html.Html Msg
@@ -289,7 +302,7 @@ viewEntryList : List Entry -> Model -> Html.Html Msg
 viewEntryList entries model =
     Html.div []
         [ viewUserInfo model.serverURL model.username
-        , Html.h1 [ Html.Attributes.style "padding-top" "1em" ] [ Html.text "Time spent on projects" ]
+        , Html.h1 [] [ Html.text "Time spent on projects" ]
         , Html.form
             [ Html.Events.onSubmit AddEntry ]
             [ Html.table [ Html.Attributes.style "width" "100%" ]
@@ -392,6 +405,33 @@ viewUserInfo serverURL username =
             ]
             [ Html.text "logout" ]
         ]
+
+
+viewErrorList : List String -> Html.Html Msg
+viewErrorList errorList =
+    Html.ul
+        [ Html.Attributes.style "list-style-type" "none"
+        , Html.Attributes.style "padding-left" "0"
+        , Html.Attributes.style "padding-top" "3em"
+        ]
+        (errorList
+            |> List.indexedMap
+                (\index error ->
+                    Html.li
+                        [ Html.Attributes.class "alert alert-danger"
+                        ]
+                        [ Html.a
+                            [ Html.Attributes.class "float-right"
+                            , Html.Attributes.style "font-weight" "normal"
+                            , Html.Attributes.style "text-decoration" "none"
+                            , Html.Attributes.style "cursor" "pointer"
+                            , Html.Events.onClick <| DiscardError index
+                            ]
+                            [ Html.text "x" ]
+                        , Html.text error
+                        ]
+                )
+        )
 
 
 type LoadingState
