@@ -16,30 +16,44 @@ import Task
 
 type alias Model =
     { entries : KintoData (List Entry)
-    , newEntryDate : String
-    , newEntryProjectName : String
-    , newEntryDescription : String
-    , newEntryTimeSpent : String
+    , newEntry : NewEntry
     , newEntryKintoData : KintoData Entry
-    , serverURL : String
-    , username : String
-    , password : String
+    , loginForm : LoginForm
     , deleteEntryList : List String -- List of entry IDs being deleted
     , errorList : List String
+    }
+
+
+type alias NewEntry =
+    { date : String
+    , name : String
+    , description : String
+    , timeSpent : String
+    }
+
+
+type alias LoginForm =
+    { serverURL : String
+    , username : String
+    , password : String
     }
 
 
 init : ( Model, Cmd Msg )
 init =
     ( { entries = NotRequested
-      , newEntryDate = ""
-      , newEntryProjectName = ""
-      , newEntryDescription = ""
-      , newEntryTimeSpent = "1"
+      , newEntry =
+            { date = ""
+            , name = ""
+            , description = ""
+            , timeSpent = "1"
+            }
       , newEntryKintoData = NotRequested
-      , serverURL = ""
-      , username = ""
-      , password = ""
+      , loginForm =
+            { serverURL = ""
+            , username = ""
+            , password = ""
+            }
       , deleteEntryList = []
       , errorList = []
       }
@@ -52,18 +66,13 @@ init =
 
 
 type Msg
-    = UpdateDate String
-    | UpdateProjectName String
-    | UpdateDescription String
-    | UpdateTimeSpent String
+    = UpdateEntry NewEntry
     | AddEntry
     | EntryAdded (Result Kinto.Error Entry)
     | DeleteEntry String
     | EntryDeleted String (Result Kinto.Error DeletedEntry)
     | EntriesFetched (Result Kinto.Error (Kinto.Pager Entry))
-    | UpdateServerURL String
-    | UpdateUsername String
-    | UpdatePassword String
+    | UpdateLoginForm LoginForm
     | UseLogin
     | Logout
     | DiscardError Int
@@ -73,19 +82,13 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         -- LOGINFORM --
-        UpdateServerURL serverURL ->
-            ( { model | serverURL = serverURL }, Cmd.none )
-
-        UpdateUsername username ->
-            ( { model | username = username }, Cmd.none )
-
-        UpdatePassword password ->
-            ( { model | password = password }, Cmd.none )
+        UpdateLoginForm loginForm ->
+            ( { model | loginForm = loginForm }, Cmd.none )
 
         UseLogin ->
             let
                 client =
-                    Kinto.client model.serverURL (Kinto.Basic model.username model.password)
+                    Kinto.client model.loginForm.serverURL (Kinto.Basic model.loginForm.username model.loginForm.password)
             in
             ( { model | entries = Requested }
             , getEntryList client
@@ -103,34 +106,25 @@ update msg model =
             )
 
         -- LOGGEDIN --
-        UpdateDate date ->
-            ( { model | newEntryDate = date }, Cmd.none )
-
-        UpdateProjectName name ->
-            ( { model | newEntryProjectName = name }, Cmd.none )
-
-        UpdateDescription description ->
-            ( { model | newEntryDescription = description }, Cmd.none )
-
-        UpdateTimeSpent timeSpent ->
-            ( { model | newEntryTimeSpent = timeSpent }, Cmd.none )
+        UpdateEntry newEntry ->
+            ( { model | newEntry = newEntry }, Cmd.none )
 
         AddEntry ->
             let
                 timeSpent =
-                    model.newEntryTimeSpent
+                    model.newEntry.timeSpent
                         |> String.toFloat
                         |> Maybe.withDefault 0
 
                 data =
                     encodeData
-                        model.newEntryProjectName
-                        model.newEntryDescription
+                        model.newEntry.name
+                        model.newEntry.description
                         timeSpent
-                        model.newEntryDate
+                        model.newEntry.date
 
                 client =
-                    Kinto.client model.serverURL (Kinto.Basic model.username model.password)
+                    Kinto.client model.loginForm.serverURL (Kinto.Basic model.loginForm.username model.loginForm.password)
             in
             ( { model | newEntryKintoData = Requested }
             , client
@@ -172,7 +166,7 @@ update msg model =
         DeleteEntry entryID ->
             let
                 client =
-                    Kinto.client model.serverURL (Kinto.Basic model.username model.password)
+                    Kinto.client model.loginForm.serverURL (Kinto.Basic model.loginForm.username model.loginForm.password)
             in
             ( { model | deleteEntryList = [ entryID ] ++ model.deleteEntryList }
             , deleteEntry client entryID
@@ -242,7 +236,7 @@ view model =
 
 
 viewLoginForm : Model -> Html.Html Msg
-viewLoginForm model =
+viewLoginForm ({ loginForm } as model) =
     let
         button =
             case model.entries of
@@ -263,8 +257,8 @@ viewLoginForm model =
                     , Html.input
                         [ Html.Attributes.type_ "text"
                         , Html.Attributes.name "serverURL"
-                        , Html.Attributes.value model.serverURL
-                        , Html.Events.onInput UpdateServerURL
+                        , Html.Attributes.value loginForm.serverURL
+                        , Html.Events.onInput <| \serverURL -> UpdateLoginForm { loginForm | serverURL = serverURL }
                         ]
                         []
                     ]
@@ -275,8 +269,8 @@ viewLoginForm model =
                     , Html.input
                         [ Html.Attributes.type_ "text"
                         , Html.Attributes.name "username"
-                        , Html.Attributes.value model.username
-                        , Html.Events.onInput UpdateUsername
+                        , Html.Attributes.value loginForm.username
+                        , Html.Events.onInput <| \username -> UpdateLoginForm { loginForm | username = username }
                         ]
                         []
                     ]
@@ -286,8 +280,8 @@ viewLoginForm model =
                     [ Html.text "Password"
                     , Html.input
                         [ Html.Attributes.type_ "password"
-                        , Html.Attributes.value model.password
-                        , Html.Events.onInput UpdatePassword
+                        , Html.Attributes.value loginForm.password
+                        , Html.Events.onInput <| \password -> UpdateLoginForm { loginForm | password = password }
                         ]
                         []
                     ]
@@ -300,9 +294,9 @@ viewLoginForm model =
 
 
 viewEntryList : List Entry -> Model -> Html.Html Msg
-viewEntryList entries model =
+viewEntryList entries ({ newEntry } as model) =
     Html.div []
-        [ viewUserInfo model.serverURL model.username
+        [ viewUserInfo model.loginForm.serverURL model.loginForm.username
         , Html.h1 [] [ Html.text "Time spent on projects" ]
         , Html.form
             [ Html.Events.onSubmit AddEntry ]
@@ -320,8 +314,8 @@ viewEntryList entries model =
                             [ Html.input
                                 [ Html.Attributes.type_ "date"
                                 , Html.Attributes.name "date"
-                                , Html.Events.onInput UpdateDate
-                                , Html.Attributes.value model.newEntryDate
+                                , Html.Events.onInput <| \date -> UpdateEntry { newEntry | date = date }
+                                , Html.Attributes.value newEntry.date
                                 ]
                                 []
                             ]
@@ -329,16 +323,16 @@ viewEntryList entries model =
                             [ Html.input
                                 [ Html.Attributes.type_ "text"
                                 , Html.Attributes.name "project name"
-                                , Html.Events.onInput UpdateProjectName
-                                , Html.Attributes.value model.newEntryProjectName
+                                , Html.Events.onInput <| \name -> UpdateEntry { newEntry | name = name }
+                                , Html.Attributes.value newEntry.name
                                 ]
                                 []
                             ]
                         , Html.td []
                             [ Html.textarea
                                 [ Html.Attributes.name "description"
-                                , Html.Events.onInput UpdateDescription
-                                , Html.Attributes.value model.newEntryDescription
+                                , Html.Events.onInput <| \description -> UpdateEntry { newEntry | description = description }
+                                , Html.Attributes.value newEntry.description
                                 ]
                                 []
                             ]
@@ -348,8 +342,8 @@ viewEntryList entries model =
                                 , Html.Attributes.name "timeSpent"
                                 , Html.Attributes.step "0.25"
                                 , Html.Attributes.min "0"
-                                , Html.Events.onInput UpdateTimeSpent
-                                , Html.Attributes.value model.newEntryTimeSpent
+                                , Html.Events.onInput <| \timeSpent -> UpdateEntry { newEntry | timeSpent = timeSpent }
+                                , Html.Attributes.value newEntry.timeSpent
                                 ]
                                 []
                             ]
