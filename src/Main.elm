@@ -230,7 +230,8 @@ update msg model =
 view : Model -> Html.Html Msg
 view model =
     Html.div []
-        [ viewErrorList model.errorList
+        [ viewGithubLink
+        , viewErrorList model.errorList
         , case model.entries of
             Received entries ->
                 viewEntryList entries model
@@ -404,6 +405,30 @@ viewUserInfo serverURL username =
             , Html.Events.onClick Logout
             ]
             [ Html.text "logout" ]
+        ]
+
+
+viewGithubLink : Html.Html Msg
+viewGithubLink =
+    Html.a
+        [ Html.Attributes.target "_blank"
+        , Html.Attributes.href "https://github.com/magopian/track-projects-time"
+        , Html.Attributes.style "position" "absolute"
+        , Html.Attributes.style "top" "30px"
+        , Html.Attributes.style "right" "0"
+        ]
+        [ Html.img
+            [ Html.Attributes.src "https://upload.wikimedia.org/wikipedia/commons/thumb/e/eb/Ei-sc-github.svg/768px-Ei-sc-github.svg.png"
+            , Html.Attributes.style "height" "96px"
+            , Html.Attributes.style "width" "96px"
+            ]
+            []
+        , Html.span
+            [ Html.Attributes.style "display" "block"
+            , Html.Attributes.style "text-align" "center"
+            , Html.Attributes.style "color" "#000"
+            ]
+            [ Html.text "Github" ]
         ]
 
 
