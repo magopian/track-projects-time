@@ -24,6 +24,7 @@ type alias Model =
     , loginForm : LoginForm
     , deleteEntryList : List String -- List of entry IDs being deleted
     , errorList : List String
+    , filter : Filter
     }
 
 
@@ -40,6 +41,11 @@ type alias LoginForm =
     , username : String
     , password : String
     }
+
+
+type Filter
+    = NoFilter
+    | Filter String
 
 
 init : flags -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
@@ -60,6 +66,7 @@ init flags url key =
             }
       , deleteEntryList = []
       , errorList = []
+      , filter = urlToFilter url
       }
     , Cmd.none
     )
@@ -96,7 +103,7 @@ update msg model =
                     ( model, Browser.Navigation.load href )
 
         UrlChanged url ->
-            ( model, Cmd.none )
+            ( { model | filter = urlToFilter url }, Cmd.none )
 
         -- LOGINFORM --
         UpdateLoginForm loginForm ->
@@ -234,6 +241,25 @@ update msg model =
             )
 
 
+urlToFilter : Url.Url -> Filter
+urlToFilter url =
+    case url.fragment of
+        Just fragment ->
+            let
+                decoded =
+                    Url.percentDecode fragment
+                        |> Maybe.withDefault ""
+            in
+            if decoded /= "" then
+                Filter decoded
+
+            else
+                NoFilter
+
+        Nothing ->
+            NoFilter
+
+
 
 ---- VIEW ----
 
@@ -243,15 +269,15 @@ view model =
     { title = "Track projects time"
     , body =
         [ Html.div []
-        [ viewGithubLink
-        , viewErrorList model.errorList
-        , case model.entries of
-            Received entries ->
-                viewEntryList entries model
+            [ viewGithubLink
+            , viewErrorList model.errorList
+            , case model.entries of
+                Received entries ->
+                    viewEntryList entries model
 
-            _ ->
-                viewLoginForm model
-        ]
+                _ ->
+                    viewLoginForm model
+            ]
         ]
     }
 
@@ -316,9 +342,29 @@ viewLoginForm ({ loginForm } as model) =
 
 viewEntryList : List Entry -> Model -> Html.Html Msg
 viewEntryList entries ({ newEntry } as model) =
+    let
+        ( filteredEntries, filterInfo ) =
+            case model.filter of
+                Filter projectName ->
+                    ( entries
+                        |> List.filter (\entry -> entry.name == projectName)
+                    , [ Html.text "Filtering on project name: "
+                      , Html.a
+                            [ Html.Attributes.href "#"
+                            , Html.Attributes.class "badge"
+                            , Html.Attributes.style "cursor" "pointer"
+                            ]
+                            [ Html.text <| projectName ++ " | x" ]
+                      ]
+                    )
+
+                NoFilter ->
+                    ( entries, [ Html.text " " ] )
+    in
     Html.div []
         [ viewUserInfo model.loginForm.serverURL model.loginForm.username
         , Html.h1 [] [ Html.text "Time spent on projects" ]
+        , Html.div [] filterInfo
         , Html.form
             [ Html.Events.onSubmit AddEntry ]
             [ Html.table [ Html.Attributes.style "width" "100%" ]
@@ -379,12 +425,12 @@ viewEntryList entries ({ newEntry } as model) =
                             ]
                         ]
                      ]
-                        ++ (entries
+                        ++ (filteredEntries
                                 |> List.map
                                     (\entry ->
                                         Html.tr []
                                             [ Html.td [] [ Html.text entry.date ]
-                                            , Html.td [] [ Html.text entry.name ]
+                                            , Html.td [] [ Html.a [ Html.Attributes.href <| "#" ++ entry.name ] [ Html.text entry.name ] ]
                                             , Html.td [] [ Html.text entry.description ]
                                             , Html.td [] [ Html.text <| String.fromFloat entry.timeSpent ]
                                             , Html.td []
