@@ -24,6 +24,7 @@ type alias Model =
     , serverURL : String
     , username : String
     , password : String
+    , deleteEntryList : List String -- List of entry IDs being deleted
     }
 
 
@@ -38,6 +39,7 @@ init =
       , serverURL = ""
       , username = ""
       , password = ""
+      , deleteEntryList = []
       }
     , Cmd.none
     )
@@ -55,7 +57,7 @@ type Msg
     | AddEntry
     | EntryAdded (Result Kinto.Error Entry)
     | DeleteEntry String
-    | EntryDeleted (Result Kinto.Error DeletedEntry)
+    | EntryDeleted String (Result Kinto.Error DeletedEntry)
     | EntriesFetched (Result Kinto.Error (Kinto.Pager Entry))
     | UpdateServerURL String
     | UpdateUsername String
@@ -169,30 +171,43 @@ update msg model =
                 client =
                     Kinto.client model.serverURL (Kinto.Basic model.username model.password)
             in
-            ( model
+            ( { model | deleteEntryList = [ entryID ] ++ model.deleteEntryList }
             , deleteEntry client entryID
             )
 
-        EntryDeleted (Ok deletedEntry) ->
+        EntryDeleted entryID (Ok deletedEntry) ->
             let
                 entries =
                     case model.entries of
                         Received entryList ->
                             entryList
-                                |> List.filter (\e -> e.id /= deletedEntry.id)
+                                |> List.filter (\e -> e.id /= entryID)
                                 |> Received
 
                         _ ->
                             model.entries
-            in
-            ( { model | entries = entries }, Cmd.none )
 
-        EntryDeleted (Err err) ->
+                deleteEntryList =
+                    model.deleteEntryList
+                        |> List.filter (\id -> id /= entryID)
+            in
+            ( { model
+                | entries = entries
+                , deleteEntryList = deleteEntryList
+              }
+            , Cmd.none
+            )
+
+        EntryDeleted entryID (Err err) ->
             let
                 _ =
                     Debug.log "Error while deleting the entry" err
+
+                deleteEntryList =
+                    model.deleteEntryList
+                        |> List.filter (\id -> id /= entryID)
             in
-            ( model, Cmd.none )
+            ( { model | deleteEntryList = deleteEntryList }, Cmd.none )
 
         Logout ->
             ( { model | entries = NotRequested }, Cmd.none )
@@ -344,7 +359,7 @@ viewEntryList entries model =
                                             , Html.td [] [ Html.text entry.description ]
                                             , Html.td [] [ Html.text <| String.fromFloat entry.timeSpent ]
                                             , Html.td []
-                                                [ loadingDangerButtonLink "Remove this entry" NotLoading <| DeleteEntry entry.id ]
+                                                [ removeEntryButton "Remove this entry" entry.id model.deleteEntryList ]
                                             ]
                                     )
                            )
@@ -403,20 +418,19 @@ loadingButton label loadingState =
         [ Html.text label ]
 
 
-loadingDangerButtonLink : String -> LoadingState -> Msg -> Html.Html Msg
-loadingDangerButtonLink label loadingState msg =
+removeEntryButton : String -> String -> List String -> Html.Html Msg
+removeEntryButton label entryID deleteEntryList =
     let
         loadingAttrs =
-            case loadingState of
-                Loading ->
-                    [ Html.Attributes.style "opacity" "0.5"
-                    , Html.Attributes.class "button button-danger button-loader"
-                    ]
+            if List.member entryID deleteEntryList then
+                [ Html.Attributes.style "opacity" "0.5"
+                , Html.Attributes.class "button button-danger button-loader"
+                ]
 
-                NotLoading ->
-                    [ Html.Events.onClick msg
-                    , Html.Attributes.class "button button-danger"
-                    ]
+            else
+                [ Html.Events.onClick <| DeleteEntry entryID
+                , Html.Attributes.class "button button-danger"
+                ]
     in
     Html.a
         loadingAttrs
@@ -510,7 +524,7 @@ deleteEntry : Kinto.Client -> String -> Cmd Msg
 deleteEntry client entryID =
     client
         |> Kinto.delete deletedRecordResource entryID
-        |> Kinto.send EntryDeleted
+        |> Kinto.send (EntryDeleted entryID)
 
 
 
