@@ -530,24 +530,27 @@ viewEntryList entries ({ newEntry, filters } as model) =
                                     (\entry ->
                                         Html.tr []
                                             [ Html.td []
-                                                [ Html.a
-                                                    [ Html.Attributes.href <|
-                                                        addFilterToFragment filters
-                                                            -- First date we add is a "from", the second an "until"
-                                                            (case filters.from of
-                                                                Just _ ->
-                                                                    "until"
+                                                [ let
+                                                    filter =
+                                                        -- First date we add is a "from", the second an "until"
+                                                        case filters.from of
+                                                            Just _ ->
+                                                                "until"
 
-                                                                Nothing ->
-                                                                    "from"
-                                                            )
-                                                            entry.date
+                                                            Nothing ->
+                                                                "from"
+                                                  in
+                                                  Html.a
+                                                    [ Html.Attributes.href <| addFilterToFragment filters filter entry.date
+                                                    , Html.Attributes.title <| "Filter on " ++ filter ++ " " ++ entry.date
                                                     ]
                                                     [ Html.text entry.date ]
                                                 ]
                                             , Html.td []
                                                 [ Html.a
-                                                    [ Html.Attributes.href <| addFilterToFragment filters "name" entry.name ]
+                                                    [ Html.Attributes.href <| addFilterToFragment filters "name" entry.name
+                                                    , Html.Attributes.title <| "Filter on project name = " ++ entry.name
+                                                    ]
                                                     [ Html.text entry.name ]
                                                 ]
                                             , Html.td [] [ Html.text entry.description ]
