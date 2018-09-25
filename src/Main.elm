@@ -49,12 +49,13 @@ type alias LoginForm =
 type alias Filters =
     { name : Maybe String
     , from : Maybe String
+    , until : Maybe String
     }
 
 
 emptyFilters : Filters
 emptyFilters =
-    Filters Nothing Nothing
+    Filters Nothing Nothing Nothing
 
 
 init : flags -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
@@ -266,7 +267,11 @@ urlToFilters url =
                     { url | query = Just filtersQuery, fragment = Nothing }
 
                 queryParser =
-                    Url.Parser.Query.map2 Filters (Url.Parser.Query.string "name") (Url.Parser.Query.string "from")
+                    Url.Parser.Query.map3
+                        Filters
+                        (Url.Parser.Query.string "name")
+                        (Url.Parser.Query.string "from")
+                        (Url.Parser.Query.string "until")
             in
             Url.Parser.parse (Url.Parser.top <?> queryParser) urlWithFragmentAsQuery
                 |> Maybe.withDefault emptyFilters
@@ -288,7 +293,12 @@ filtersToFragment filters =
                     acc
 
         queryParams =
-            List.foldl filterToQueryParam [] [ ( .name, "name" ), ( .from, "from" ) ]
+            List.foldl filterToQueryParam
+                []
+                [ ( .name, "name" )
+                , ( .from, "from" )
+                , ( .until, "until" )
+                ]
     in
     "#" ++ Url.Builder.toQuery queryParams
 
@@ -304,6 +314,9 @@ addFilterToFragment filters filterLabel filterValue =
 
                 "from" ->
                     { filters | from = Just filterValue }
+
+                "until" ->
+                    { filters | until = Just filterValue }
 
                 _ ->
                     filters
@@ -322,6 +335,9 @@ removeFilterFromFragment filters filterLabel =
 
                 "from" ->
                     { filters | from = Nothing }
+
+                "until" ->
+                    { filters | until = Nothing }
 
                 _ ->
                     filters
@@ -443,6 +459,7 @@ viewEntryList entries ({ newEntry, filters } as model) =
             ( entries, [] )
                 |> applyFilter "name" .name .name (==)
                 |> applyFilter "from" .from .date (>=)
+                |> applyFilter "until" .until .date (<=)
     in
     Html.div []
         [ viewUserInfo model.loginForm.serverURL model.loginForm.username
@@ -514,7 +531,18 @@ viewEntryList entries ({ newEntry, filters } as model) =
                                         Html.tr []
                                             [ Html.td []
                                                 [ Html.a
-                                                    [ Html.Attributes.href <| addFilterToFragment filters "from" entry.date ]
+                                                    [ Html.Attributes.href <|
+                                                        addFilterToFragment filters
+                                                            -- First date we add is a "from", the second an "until"
+                                                            (case filters.from of
+                                                                Just _ ->
+                                                                    "until"
+
+                                                                Nothing ->
+                                                                    "from"
+                                                            )
+                                                            entry.date
+                                                    ]
                                                     [ Html.text entry.date ]
                                                 ]
                                             , Html.td []
