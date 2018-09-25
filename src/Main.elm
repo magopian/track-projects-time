@@ -262,9 +262,11 @@ urlToFilters url =
                         |> Maybe.withDefault "?"
                         |> String.dropLeft 1
 
-                -- Save it in the Url's query, so we can use Url.Parser.Query to parse the filters from the Url
+                -- Save it in the Url's query, so we can use Url.Parser.Query to parse the filters from the Url.
+                -- Also discard the "path", as we only care about the query, and we might have a path
+                -- (if deployed in github pages for example) that would break the parser.
                 urlWithFragmentAsQuery =
-                    { url | query = Just filtersQuery, fragment = Nothing }
+                    { url | query = Just filtersQuery, fragment = Nothing, path = "/" }
 
                 queryParser =
                     Url.Parser.Query.map3
