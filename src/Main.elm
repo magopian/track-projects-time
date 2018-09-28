@@ -2,6 +2,7 @@ module Main exposing (Model, Msg(..), init, main, update, view)
 
 import Browser
 import Browser.Navigation
+import Dict
 import Html
 import Html.Attributes
 import Html.Events
@@ -47,15 +48,35 @@ type alias LoginForm =
 
 
 type alias Filters =
-    { name : Maybe String
-    , from : Maybe String
-    , until : Maybe String
+    Dict.Dict String Filter
+
+
+type alias Filter =
+    { value : String
+    , entryFieldGetter : EntryFieldGetter
+    , compareFunc : CompareFunc
+    }
+
+
+type alias EntryFieldGetter =
+    Entry -> String
+
+
+type alias CompareFunc =
+    String -> String -> Bool
+
+
+type alias FilterData =
+    { maybeVal : Maybe String
+    , label : String
+    , entryFieldGetter : EntryFieldGetter
+    , compareFunc : CompareFunc
     }
 
 
 emptyFilters : Filters
 emptyFilters =
-    Filters Nothing Nothing Nothing
+    Dict.empty
 
 
 init : flags -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
@@ -270,7 +291,7 @@ urlToFilters url =
 
                 queryParser =
                     Url.Parser.Query.map3
-                        Filters
+                        addFilters
                         (Url.Parser.Query.string "name")
                         (Url.Parser.Query.string "from")
                         (Url.Parser.Query.string "until")
@@ -282,69 +303,48 @@ urlToFilters url =
             emptyFilters
 
 
+addFilters : Maybe String -> Maybe String -> Maybe String -> Filters
+addFilters name from until =
+    let
+        maybeAddFilter : FilterData -> Filters -> Filters
+        maybeAddFilter { maybeVal, label, entryFieldGetter, compareFunc } filters =
+            case maybeVal of
+                Just value ->
+                    Dict.insert label (Filter value entryFieldGetter compareFunc) filters
+
+                Nothing ->
+                    filters
+    in
+    List.foldl maybeAddFilter
+        emptyFilters
+        [ { maybeVal = name, label = "name", entryFieldGetter = .name, compareFunc = (==) }
+        , { maybeVal = from, label = "from", entryFieldGetter = .date, compareFunc = (>=) }
+        , { maybeVal = until, label = "until", entryFieldGetter = .date, compareFunc = (<=) }
+        ]
+
+
 filtersToFragment : Filters -> String
 filtersToFragment filters =
     let
-        filterToQueryParam : ( Filters -> Maybe String, String ) -> List Url.Builder.QueryParameter -> List Url.Builder.QueryParameter
-        filterToQueryParam ( filtersFieldGetter, filterLabel ) acc =
-            case filtersFieldGetter filters of
-                Just filterValue ->
-                    acc ++ [ Url.Builder.string filterLabel filterValue ]
-
-                Nothing ->
-                    acc
-
-        queryParams =
-            List.foldl filterToQueryParam
-                []
-                [ ( .name, "name" )
-                , ( .from, "from" )
-                , ( .until, "until" )
-                ]
+        query =
+            filters
+                |> Dict.toList
+                |> List.map (\( label, filter ) -> Url.Builder.string label filter.value)
+                |> Url.Builder.toQuery
     in
-    "#" ++ Url.Builder.toQuery queryParams
+    "#" ++ query
 
 
-addFilterToFragment : Filters -> String -> String -> String
-addFilterToFragment filters filterLabel filterValue =
-    let
-        updatedFilters : Filters
-        updatedFilters =
-            case filterLabel of
-                "name" ->
-                    { filters | name = Just filterValue }
-
-                "from" ->
-                    { filters | from = Just filterValue }
-
-                "until" ->
-                    { filters | until = Just filterValue }
-
-                _ ->
-                    filters
-    in
-    filtersToFragment updatedFilters
+addFilterToFragment : Filters -> String -> Filter -> String
+addFilterToFragment filters filterLabel filter =
+    Dict.insert filterLabel filter filters
+        |> filtersToFragment
 
 
 removeFilterFromFragment : Filters -> String -> String
 removeFilterFromFragment filters filterLabel =
-    let
-        updatedFilters : Filters
-        updatedFilters =
-            case filterLabel of
-                "name" ->
-                    { filters | name = Nothing }
-
-                "from" ->
-                    { filters | from = Nothing }
-
-                "until" ->
-                    { filters | until = Nothing }
-
-                _ ->
-                    filters
-    in
-    filtersToFragment updatedFilters
+    Dict.remove filterLabel filters
+        |> filtersToFragment
 
 
 
@@ -439,29 +439,24 @@ viewEntryList entries ({ newEntry, filters } as model) =
                 ]
                 [ Html.text <| label ++ " = " ++ value ++ " | x" ]
 
-        applyFilter :
-            String
-            -> (Filters -> Maybe String)
-            -> (Entry -> String)
-            -> (String -> String -> Bool)
-            -> ( List Entry, List (Html.Html Msg) )
-            -> ( List Entry, List (Html.Html Msg) )
-        applyFilter filterLabel filtersFieldGetter entryFieldGetter compareFunc ( entryList, badgeList ) =
-            case filtersFieldGetter filters of
-                Just filterValue ->
-                    ( entryList
-                        |> List.filter (\entry -> compareFunc (entryFieldGetter entry) filterValue)
-                    , badgeList ++ [ filterBadge filterLabel filterValue ]
+        filteredEntries =
+            filters
+                |> Dict.toList
+                -- Apply all filters in turn on the accumulator (the entries list)
+                |> List.foldl
+                    (\( label, { value, entryFieldGetter, compareFunc } ) entryList ->
+                        entryList
+                            |> List.filter (\entry -> compareFunc (entryFieldGetter entry) value)
                     )
+                    entries
 
-                Nothing ->
-                    ( entryList, badgeList )
-
-        ( filteredEntries, badges ) =
-            ( entries, [] )
-                |> applyFilter "name" .name .name (==)
-                |> applyFilter "from" .from .date (>=)
-                |> applyFilter "until" .until .date (<=)
+        badges =
+            filters
+                |> Dict.toList
+                |> List.map
+                    (\( label, { value, entryFieldGetter, compareFunc } ) ->
+                        filterBadge label value
+                    )
     in
     Html.div []
         [ viewUserInfo model.loginForm.serverURL model.loginForm.username
@@ -533,24 +528,23 @@ viewEntryList entries ({ newEntry, filters } as model) =
                                         Html.tr []
                                             [ Html.td []
                                                 [ let
-                                                    filter =
+                                                    ( filterLabel, compareFunc ) =
                                                         -- First date we add is a "from", the second an "until"
-                                                        case filters.from of
-                                                            Just _ ->
-                                                                "until"
+                                                        if Dict.member "from" filters then
+                                                            ( "until", (<=) )
 
-                                                            Nothing ->
-                                                                "from"
+                                                        else
+                                                            ( "from", (>=) )
                                                   in
                                                   Html.a
-                                                    [ Html.Attributes.href <| addFilterToFragment filters filter entry.date
-                                                    , Html.Attributes.title <| "Filter on " ++ filter ++ " " ++ entry.date
+                                                    [ Html.Attributes.href <| addFilterToFragment filters filterLabel (Filter entry.date .date compareFunc)
+                                                    , Html.Attributes.title <| "Filter on " ++ filterLabel ++ " " ++ entry.date
                                                     ]
                                                     [ Html.text entry.date ]
                                                 ]
                                             , Html.td []
                                                 [ Html.a
-                                                    [ Html.Attributes.href <| addFilterToFragment filters "name" entry.name
+                                                    [ Html.Attributes.href <| addFilterToFragment filters "name" (Filter entry.name .name (==))
                                                     , Html.Attributes.title <| "Filter on project name = " ++ entry.name
                                                     ]
                                                     [ Html.text entry.name ]
