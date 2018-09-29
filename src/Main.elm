@@ -3,6 +3,7 @@ module Main exposing (Model, Msg(..), init, main, update, view)
 import Browser
 import Browser.Navigation
 import Dict
+import Filters
 import Html
 import Html.Attributes
 import Html.Events
@@ -28,7 +29,7 @@ type alias Model =
     , loginForm : LoginForm
     , deleteEntryList : List String -- List of entry IDs being deleted
     , errorList : List String
-    , filters : Filters
+    , filters : Filters.Filters Entry
     }
 
 
@@ -45,38 +46,6 @@ type alias LoginForm =
     , username : String
     , password : String
     }
-
-
-type alias Filters =
-    Dict.Dict String Filter
-
-
-type alias Filter =
-    { value : String
-    , entryFieldGetter : EntryFieldGetter
-    , compareFunc : CompareFunc
-    }
-
-
-type alias EntryFieldGetter =
-    Entry -> String
-
-
-type alias CompareFunc =
-    String -> String -> Bool
-
-
-type alias FilterData =
-    { maybeVal : Maybe String
-    , label : String
-    , entryFieldGetter : EntryFieldGetter
-    , compareFunc : CompareFunc
-    }
-
-
-emptyFilters : Filters
-emptyFilters =
-    Dict.empty
 
 
 init : flags -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
@@ -97,7 +66,7 @@ init flags url key =
             }
       , deleteEntryList = []
       , errorList = []
-      , filters = urlToFilters url
+      , filters = Filters.urlToFilters url
       }
     , Cmd.none
     )
@@ -134,7 +103,7 @@ update msg model =
                     ( model, Browser.Navigation.load href )
 
         UrlChanged url ->
-            ( { model | filters = urlToFilters url }, Cmd.none )
+            ( { model | filters = Filters.urlToFilters url }, Cmd.none )
 
         -- LOGINFORM --
         UpdateLoginForm loginForm ->
@@ -272,81 +241,6 @@ update msg model =
             )
 
 
-urlToFilters : Url.Url -> Filters
-urlToFilters url =
-    case url.fragment of
-        Just fragment ->
-            let
-                -- The filters query is stored in the fragment, eg #?name=foo&from=2018-09-25
-                filtersQuery =
-                    url.fragment
-                        |> Maybe.withDefault "?"
-                        |> String.dropLeft 1
-
-                -- Save it in the Url's query, so we can use Url.Parser.Query to parse the filters from the Url.
-                -- Also discard the "path", as we only care about the query, and we might have a path
-                -- (if deployed in github pages for example) that would break the parser.
-                urlWithFragmentAsQuery =
-                    { url | query = Just filtersQuery, fragment = Nothing, path = "/" }
-
-                queryParser =
-                    Url.Parser.Query.map3
-                        addFilters
-                        (Url.Parser.Query.string "name")
-                        (Url.Parser.Query.string "from")
-                        (Url.Parser.Query.string "until")
-            in
-            Url.Parser.parse (Url.Parser.top <?> queryParser) urlWithFragmentAsQuery
-                |> Maybe.withDefault emptyFilters
-
-        Nothing ->
-            emptyFilters
-
-
-addFilters : Maybe String -> Maybe String -> Maybe String -> Filters
-addFilters name from until =
-    let
-        maybeAddFilter : FilterData -> Filters -> Filters
-        maybeAddFilter { maybeVal, label, entryFieldGetter, compareFunc } filters =
-            case maybeVal of
-                Just value ->
-                    Dict.insert label (Filter value entryFieldGetter compareFunc) filters
-
-                Nothing ->
-                    filters
-    in
-    List.foldl maybeAddFilter
-        emptyFilters
-        [ { maybeVal = name, label = "name", entryFieldGetter = .name, compareFunc = (==) }
-        , { maybeVal = from, label = "from", entryFieldGetter = .date, compareFunc = (>=) }
-        , { maybeVal = until, label = "until", entryFieldGetter = .date, compareFunc = (<=) }
-        ]
-
-
-filtersToFragment : Filters -> String
-filtersToFragment filters =
-    let
-        query =
-            filters
-                |> Dict.toList
-                |> List.map (\( label, filter ) -> Url.Builder.string label filter.value)
-                |> Url.Builder.toQuery
-    in
-    "#" ++ query
-
-
-addFilterToFragment : Filters -> String -> Filter -> String
-addFilterToFragment filters filterLabel filter =
-    Dict.insert filterLabel filter filters
-        |> filtersToFragment
-
-
-removeFilterFromFragment : Filters -> String -> String
-removeFilterFromFragment filters filterLabel =
-    Dict.remove filterLabel filters
-        |> filtersToFragment
-
-
 
 ---- VIEW ----
 
@@ -433,7 +327,7 @@ viewEntryList entries ({ newEntry, filters } as model) =
         filterBadge : String -> String -> Html.Html Msg
         filterBadge label value =
             Html.a
-                [ Html.Attributes.href <| removeFilterFromFragment filters label
+                [ Html.Attributes.href <| Filters.removeFilterFromFragment filters label
                 , Html.Attributes.class "badge"
                 , Html.Attributes.style "cursor" "pointer"
                 ]
@@ -537,14 +431,14 @@ viewEntryList entries ({ newEntry, filters } as model) =
                                                             ( "from", (>=) )
                                                   in
                                                   Html.a
-                                                    [ Html.Attributes.href <| addFilterToFragment filters filterLabel (Filter entry.date .date compareFunc)
+                                                    [ Html.Attributes.href <| Filters.addFilterToFragment filters filterLabel (Filters.Filter entry.date .date compareFunc)
                                                     , Html.Attributes.title <| "Filter on " ++ filterLabel ++ " " ++ entry.date
                                                     ]
                                                     [ Html.text entry.date ]
                                                 ]
                                             , Html.td []
                                                 [ Html.a
-                                                    [ Html.Attributes.href <| addFilterToFragment filters "name" (Filter entry.name .name (==))
+                                                    [ Html.Attributes.href <| Filters.addFilterToFragment filters "name" (Filters.Filter entry.name .name (==))
                                                     , Html.Attributes.title <| "Filter on project name = " ++ entry.name
                                                     ]
                                                     [ Html.text entry.name ]
@@ -552,7 +446,7 @@ viewEntryList entries ({ newEntry, filters } as model) =
                                             , Html.td [] [ Html.text entry.description ]
                                             , Html.td [] [ Html.text <| String.fromFloat entry.timeSpent ]
                                             , Html.td []
-                                                [ removeEntryButton "Remove this entry" entry.id model.deleteEntryList <| filtersToFragment filters ]
+                                                [ removeEntryButton "Remove this entry" entry.id model.deleteEntryList <| Filters.filtersToFragment filters ]
                                             ]
                                     )
                            )
