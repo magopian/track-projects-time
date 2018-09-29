@@ -351,10 +351,18 @@ viewEntryList entries ({ newEntry, filters } as model) =
                     (\( label, { value, entryFieldGetter, compareFunc } ) ->
                         filterBadge label value
                     )
+
+        totalDays =
+            filteredEntries
+                |> List.map .timeSpent
+                |> List.foldl (+) 0
     in
     Html.div []
         [ viewUserInfo model.loginForm.serverURL model.loginForm.username
-        , Html.h1 [] [ Html.text "Time spent on projects" ]
+        , Html.h1 []
+            [ Html.text "Days spent on projects: "
+            , Html.span [ Html.Attributes.class "badge" ] [ Html.text <| String.fromFloat totalDays ++ " days" ]
+            ]
         , Html.div [] badges
         , Html.form
             [ Html.Events.onSubmit AddEntry ]
