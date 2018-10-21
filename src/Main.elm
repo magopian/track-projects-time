@@ -236,7 +236,7 @@ update msg model =
             )
 
         Logout ->
-            ( { model | entries = NotRequested }, Cmd.none )
+            ( { model | entries = NotRequested }, logoutSession () )
 
         DiscardError index ->
             ( { model | errorList = List.take index model.errorList ++ List.drop (index + 1) model.errorList }
@@ -683,6 +683,10 @@ deleteEntry client entryID =
 
 
 port saveSession : LoginForm -> Cmd msg
+
+
+port logoutSession : () -> Cmd msg
+
 
 
 ---- PROGRAM ----

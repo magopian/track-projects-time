@@ -10,4 +10,9 @@ app.ports.saveSession.subscribe(data => {
   localStorage.setItem("session", JSON.stringify(data));
 });
 
+app.ports.logoutSession.subscribe(() => {
+  console.log("logout session");
+  localStorage.removeItem("session");
+});
+
 registerServiceWorker();
