@@ -48,28 +48,45 @@ type alias LoginForm =
     }
 
 
-init : flags -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
+emptyLoginForm : LoginForm
+emptyLoginForm =
+    { serverURL = ""
+    , username = ""
+    , password = ""
+    }
+
+
+type alias Flags =
+    Encode.Value
+
+
+init : Flags -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
 init flags url key =
-    ( { navKey = key
-      , entries = NotRequested
-      , newEntry =
-            { date = ""
-            , name = ""
-            , description = ""
-            , timeSpent = "1"
+    let
+        loginForm =
+            -- Decode a string from the value (the stringified session data)
+            Decode.decodeValue Decode.string flags
+                -- Decode a loginForm from the value
+                |> Result.andThen (Decode.decodeString decodeSessionData)
+                |> Result.withDefault emptyLoginForm
+
+        model =
+            { navKey = key
+            , entries = NotRequested
+            , newEntry =
+                { date = ""
+                , name = ""
+                , description = ""
+                , timeSpent = "1"
+                }
+            , newEntryKintoData = NotRequested
+            , loginForm = loginForm
+            , deleteEntryList = []
+            , errorList = []
+            , filters = Filters.urlToFilters url
             }
-      , newEntryKintoData = NotRequested
-      , loginForm =
-            { serverURL = ""
-            , username = ""
-            , password = ""
-            }
-      , deleteEntryList = []
-      , errorList = []
-      , filters = Filters.urlToFilters url
-      }
-    , Cmd.none
-    )
+    in
+    useLogin model
 
 
 
@@ -91,6 +108,29 @@ type Msg
     | DiscardError Int
 
 
+isLoginFormComplete : LoginForm -> Bool
+isLoginFormComplete loginForm =
+    loginForm.serverURL /= "" && loginForm.username /= "" && loginForm.password /= ""
+
+
+useLogin : Model -> ( Model, Cmd Msg )
+useLogin model =
+    if isLoginFormComplete model.loginForm then
+        let
+            client =
+                Kinto.client model.loginForm.serverURL (Kinto.Basic model.loginForm.username model.loginForm.password)
+        in
+        ( { model | entries = Requested }
+        , Cmd.batch
+            [ getEntryList client
+            , saveSession <| encodeSessionData model.loginForm
+            ]
+        )
+
+    else
+        ( model, Cmd.none )
+
+
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
@@ -110,16 +150,7 @@ update msg model =
             ( { model | loginForm = loginForm }, Cmd.none )
 
         UseLogin ->
-            let
-                client =
-                    Kinto.client model.loginForm.serverURL (Kinto.Basic model.loginForm.username model.loginForm.password)
-            in
-            ( { model | entries = Requested }
-            , Cmd.batch
-                [ getEntryList client
-                , saveSession model.loginForm
-                ]
-            )
+            useLogin model
 
         EntriesFetched (Ok entriesPager) ->
             ( { model | entries = Received entriesPager.objects }, Cmd.none )
@@ -236,7 +267,7 @@ update msg model =
             )
 
         Logout ->
-            ( { model | entries = NotRequested }, logoutSession () )
+            ( { model | entries = NotRequested, loginForm = emptyLoginForm }, logoutSession () )
 
         DiscardError index ->
             ( { model | errorList = List.take index model.errorList ++ List.drop (index + 1) model.errorList }
@@ -269,13 +300,23 @@ view model =
 viewLoginForm : Model -> Html.Html Msg
 viewLoginForm ({ loginForm } as model) =
     let
-        button =
-            case model.entries of
-                Requested ->
-                    loadingButton "Use these credentials" Loading
+        formComplete =
+            isLoginFormComplete loginForm
 
-                _ ->
-                    loadingButton "Use these credentials" NotLoading
+        buttonState =
+            if formComplete then
+                case model.entries of
+                    Requested ->
+                        Loading
+
+                    _ ->
+                        NotLoading
+
+            else
+                Disabled
+
+        button =
+            loadingButton "Use these credentials" buttonState
     in
     Html.form
         [ Html.Events.onSubmit UseLogin
@@ -543,16 +584,23 @@ viewErrorList errorList =
         )
 
 
-type LoadingState
-    = Loading
+type ButtonState
+    = Disabled
+    | Loading
     | NotLoading
 
 
-loadingButton : String -> LoadingState -> Html.Html Msg
-loadingButton label loadingState =
+loadingButton : String -> ButtonState -> Html.Html Msg
+loadingButton label buttonState =
     let
         loadingAttrs =
-            case loadingState of
+            case buttonState of
+                Disabled ->
+                    [ Html.Attributes.type_ "submit"
+                    , Html.Attributes.class "button"
+                    , Html.Attributes.disabled True
+                    ]
+
                 Loading ->
                     [ Html.Attributes.type_ "submit"
                     , Html.Attributes.class "button button-loader"
@@ -560,7 +608,9 @@ loadingButton label loadingState =
                     ]
 
                 NotLoading ->
-                    [ Html.Attributes.class "button" ]
+                    [ Html.Attributes.type_ "submit"
+                    , Html.Attributes.class "button"
+                    ]
     in
     Html.button
         loadingAttrs
@@ -679,10 +729,32 @@ deleteEntry client entryID =
 
 
 
+-- Session Data --
+
+
+encodeSessionData : LoginForm -> Encode.Value
+encodeSessionData loginForm =
+    Encode.object
+        [ ( "serverURL", Encode.string loginForm.serverURL )
+        , ( "username", Encode.string loginForm.username )
+        , ( "password", Encode.string loginForm.password )
+        ]
+
+
+decodeSessionData : Decode.Decoder LoginForm
+decodeSessionData =
+    Decode.map3
+        LoginForm
+        (Decode.field "serverURL" Decode.string)
+        (Decode.field "username" Decode.string)
+        (Decode.field "password" Decode.string)
+
+
+
 ---- PORTS ----
 
 
-port saveSession : LoginForm -> Cmd msg
+port saveSession : Encode.Value -> Cmd msg
 
 
 port logoutSession : () -> Cmd msg
@@ -692,7 +764,7 @@ port logoutSession : () -> Cmd msg
 ---- PROGRAM ----
 
 
-main : Program () Model Msg
+main : Program Flags Model Msg
 main =
     Browser.application
         { view = view
