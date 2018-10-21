@@ -1,4 +1,4 @@
-module Main exposing (Model, Msg(..), init, main, update, view)
+port module Main exposing (Model, Msg(..), init, main, update, view)
 
 import Browser
 import Browser.Navigation
@@ -115,7 +115,10 @@ update msg model =
                     Kinto.client model.loginForm.serverURL (Kinto.Basic model.loginForm.username model.loginForm.password)
             in
             ( { model | entries = Requested }
-            , getEntryList client
+            , Cmd.batch
+                [ getEntryList client
+                , saveSession model.loginForm
+                ]
             )
 
         EntriesFetched (Ok entriesPager) ->
@@ -674,6 +677,12 @@ deleteEntry client entryID =
         |> Kinto.delete deletedRecordResource entryID
         |> Kinto.send (EntryDeleted entryID)
 
+
+
+---- PORTS ----
+
+
+port saveSession : LoginForm -> Cmd msg
 
 
 ---- PROGRAM ----

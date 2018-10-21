@@ -1,8 +1,13 @@
 import { Elm } from './Main.elm';
 import registerServiceWorker from './registerServiceWorker';
 
-Elm.Main.init({
+const app = Elm.Main.init({
   node: document.getElementById('root')
+});
+
+app.ports.saveSession.subscribe(data => {
+  console.log("save session", data);
+  localStorage.setItem("session", JSON.stringify(data));
 });
 
 registerServiceWorker();
