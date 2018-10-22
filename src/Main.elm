@@ -415,7 +415,7 @@ viewEntryList entries ({ newEntry, filters } as model) =
                     [ Html.th [] [ Html.text "Date" ]
                     , Html.th [] [ Html.text "Project name" ]
                     , Html.th [] [ Html.text "What was done" ]
-                    , Html.th [] [ Html.text "How long did it take" ]
+                    , Html.th [] [ Html.text "How many days" ]
                     , Html.th [] [ Html.text "Actions" ]
                     ]
                 , Html.tbody []
