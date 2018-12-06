@@ -1,6 +1,5 @@
 {
     "type": "application",
-    "homepage": "./",
     "source-directories": [
         "src"
     ],
