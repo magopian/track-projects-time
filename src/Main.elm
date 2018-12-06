@@ -203,12 +203,18 @@ update msg model =
 
                         _ ->
                             model.entries
+
+                newEntry =
+                    model.newEntry
             in
             ( { model
                 | entries = entries
 
                 -- We're going straight back to "NotRequested" as we added the entry to the list
                 , newEntryKintoData = NotRequested
+
+                -- reset the description, keep the rest as we might need to add other items for the same day, same project, same duration
+                , newEntry = { newEntry | description = "" }
               }
             , Cmd.none
             )
