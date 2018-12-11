@@ -449,6 +449,7 @@ viewEntryList entries ({ newEntry, filters } as model) =
                                 [ Html.Attributes.name "description"
                                 , Html.Events.onInput <| \description -> UpdateEntry { newEntry | description = description }
                                 , Html.Attributes.value newEntry.description
+                                , Html.Attributes.style "white-space" "pre-wrap"
                                 ]
                                 []
                             ]
