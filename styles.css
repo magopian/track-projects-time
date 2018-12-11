@@ -3,5 +3,5 @@ body {
     max-width: 968px;
 }
 textarea {
-    white-space: inherit;
+    white-space: pre;
 }
