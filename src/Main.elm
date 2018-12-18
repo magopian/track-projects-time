@@ -502,7 +502,7 @@ viewEntryList entries ({ newEntry, filters } as model) =
                                                     ]
                                                     [ Html.text entry.name ]
                                                 ]
-                                            , Html.td [] [ Html.text entry.description ]
+                                            , Html.td [ Html.Attributes.style "white-space" "pre-wrap" ] [ Html.text entry.description ]
                                             , Html.td [] [ Html.text <| String.fromFloat entry.timeSpent ]
                                             , Html.td []
                                                 [ removeEntryButton "Remove this entry" entry.id model.deleteEntryList <| Filters.filtersToFragment filters ]
