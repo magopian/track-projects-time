@@ -197,7 +197,7 @@ update msg model =
                         Received entryList ->
                             [ entry ]
                                 ++ entryList
-                                |> List.sortBy .last_modified
+                                |> List.sortBy .date
                                 |> List.reverse
                                 |> Received
 
@@ -700,7 +700,7 @@ getEntryList : Kinto.Client -> Cmd Msg
 getEntryList client =
     client
         |> Kinto.getList recordResource
-        |> Kinto.sort [ "-last_modified" ]
+        |> Kinto.sort [ "-date" ]
         |> Kinto.send EntriesFetched
 
 
