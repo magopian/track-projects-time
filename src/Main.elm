@@ -697,18 +697,48 @@ type alias Entry =
     , description : String
     , timeSpent : Float
     , date : String
+    , status : Status
     }
+
+
+type Status
+    = None
+    | Invoiced
+    | Paid
 
 
 decodeEntry : Decode.Decoder Entry
 decodeEntry =
-    Decode.map6 Entry
+    Decode.map7 Entry
         (Decode.field "id" Decode.string)
         (Decode.field "last_modified" Decode.int)
         (Decode.field "name" Decode.string)
         (Decode.field "description" Decode.string)
         (Decode.field "timeSpent" Decode.float)
         (Decode.field "date" Decode.string)
+        decodeStatus
+
+
+decodeStatus : Decode.Decoder Status
+decodeStatus =
+    Decode.maybe (Decode.field "status" Decode.string)
+        |> Decode.andThen
+            (\decoded ->
+                case decoded of
+                    Just status ->
+                        case status of
+                            "Invoiced" ->
+                                Decode.succeed Invoiced
+
+                            "Paid" ->
+                                Decode.succeed Paid
+
+                            _ ->
+                                Decode.succeed None
+
+                    _ ->
+                        Decode.succeed None
+            )
 
 
 encodeData : String -> String -> Float -> String -> Encode.Value
