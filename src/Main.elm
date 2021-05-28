@@ -25,6 +25,7 @@ type alias Model =
     , loginForm : LoginForm
     , deleteEntryList : List String -- List of entry IDs being deleted
     , markEntryInvoicedList : List String -- List of entry IDs being marked as invoiced
+    , markEntryPaidList : List String -- List of entry IDs being marked as paid
     , errorList : List String
     , filters : Filters.Filters Entry
     }
@@ -80,6 +81,7 @@ init flags url key =
             , loginForm = loginForm
             , deleteEntryList = []
             , markEntryInvoicedList = []
+            , markEntryPaidList = []
             , errorList = []
             , filters = Filters.urlToFilters url
             }
@@ -99,6 +101,8 @@ type Msg
     | EntryAdded (Result Kinto.Error Entry)
     | MarkInvoiced Entry
     | MarkedInvoiced String (Result Kinto.Error Entry)
+    | MarkPaid Entry
+    | MarkedPaid String (Result Kinto.Error Entry)
     | DeleteEntry String
     | EntryDeleted String (Result Kinto.Error DeletedEntry)
     | EntriesFetched (Result Kinto.Error (Kinto.Pager Entry))
@@ -320,6 +324,58 @@ update msg model =
             in
             ( { model
                 | markEntryInvoicedList = markEntryInvoicedList
+                , errorList = Kinto.errorToString err :: model.errorList
+              }
+            , Cmd.none
+            )
+
+        MarkPaid entry ->
+            let
+                client =
+                    Kinto.client model.loginForm.serverURL (Kinto.Basic model.loginForm.username model.loginForm.password)
+            in
+            ( { model | markEntryPaidList = entry.id :: model.markEntryPaidList }
+            , markEntryPaid client entry
+            )
+
+        MarkedPaid entryID (Ok updatedEntry) ->
+            let
+                entries =
+                    case model.entries of
+                        Received entryList ->
+                            entryList
+                                |> List.map
+                                    (\e ->
+                                        if e.id == entryID then
+                                            updatedEntry
+
+                                        else
+                                            e
+                                    )
+                                |> Received
+
+                        _ ->
+                            model.entries
+
+                markEntryPaidList =
+                    model.markEntryPaidList
+                        |> List.filter (\id -> id /= entryID)
+            in
+            ( { model
+                | entries = entries
+                , markEntryPaidList = markEntryPaidList
+              }
+            , Cmd.none
+            )
+
+        MarkedPaid entryID (Err err) ->
+            let
+                markEntryPaidList =
+                    model.markEntryPaidList
+                        |> List.filter (\id -> id /= entryID)
+            in
+            ( { model
+                | markEntryPaidList = markEntryPaidList
                 , errorList = Kinto.errorToString err :: model.errorList
               }
             , Cmd.none
@@ -562,6 +618,7 @@ viewEntryList entries ({ newEntry, filters } as model) =
                                             , Html.td []
                                                 [ removeEntryButton "Remove this entry" entry.id model.deleteEntryList <| Filters.filtersToFragment filters
                                                 , markEntryInvoicedButton "Mark as invoiced" entry model.markEntryInvoicedList <| Filters.filtersToFragment filters
+                                                , markEntryPaidButton "Mark as paid" entry model.markEntryPaidList <| Filters.filtersToFragment filters
                                                 ]
                                             ]
                                     )
@@ -755,6 +812,23 @@ markEntryInvoicedButton label entry markEntryInvoicedList urlFragment =
         (Html.Attributes.href urlFragment :: loadingAttrs)
         [ Html.text label ]
 
+markEntryPaidButton : String -> Entry -> List String -> String -> Html.Html Msg
+markEntryPaidButton label entry markEntryPaidList urlFragment =
+    let
+        loadingAttrs =
+            if List.member entry.id markEntryPaidList then
+                [ Html.Attributes.style "opacity" "0.5"
+                , Html.Attributes.class "button button-danger button-loader"
+                ]
+
+            else
+                [ Html.Events.onClick <| MarkPaid entry
+                , Html.Attributes.class "button button-danger"
+                ]
+    in
+    Html.a
+        (Html.Attributes.href urlFragment :: loadingAttrs)
+        [ Html.text label ]
 
 
 ---- DECODERS ----
@@ -915,6 +989,23 @@ markEntryInvoiced client entry =
         |> Kinto.update recordResource entry.id data
         |> Kinto.send (MarkedInvoiced entry.id)
 
+-- Mark Entry Paid --
+
+
+markEntryPaid : Kinto.Client -> Entry -> Cmd Msg
+markEntryPaid client entry =
+    let
+        data =
+            encodeData
+                entry.name
+                entry.description
+                entry.timeSpent
+                entry.date
+                Paid
+    in
+    client
+        |> Kinto.update recordResource entry.id data
+        |> Kinto.send (MarkedPaid entry.id)
 
 
 -- Session Data --
