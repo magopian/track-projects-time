@@ -27,6 +27,7 @@ type alias Model =
     , deleteEntryList : List String -- List of entry IDs being deleted
     , markEntryInvoicedList : List String -- List of entry IDs being marked as invoiced
     , markEntryPaidList : List String -- List of entry IDs being marked as paid
+    , resetStatusEntryList : List String -- List of entry IDs being marked as "none" (not paid, not invoiced)
     , errorList : List String
     , filters : Filters.Filters Entry
     }
@@ -83,6 +84,7 @@ init flags url key =
             , deleteEntryList = []
             , markEntryInvoicedList = []
             , markEntryPaidList = []
+            , resetStatusEntryList = []
             , errorList = []
             , filters = Filters.urlToFilters url
             }
@@ -104,6 +106,8 @@ type Msg
     | MarkedInvoiced String (Result Kinto.Error Entry)
     | MarkPaid Entry
     | MarkedPaid String (Result Kinto.Error Entry)
+    | ResetStatus Entry
+    | StatusReset String (Result Kinto.Error Entry)
     | DeleteEntry String
     | EntryDeleted String (Result Kinto.Error DeletedEntry)
     | EntriesFetched (Result Kinto.Error (Kinto.Pager Entry))
@@ -382,6 +386,58 @@ update msg model =
             , Cmd.none
             )
 
+        ResetStatus entry ->
+            let
+                client =
+                    Kinto.client model.loginForm.serverURL (Kinto.Basic model.loginForm.username model.loginForm.password)
+            in
+            ( { model | resetStatusEntryList = entry.id :: model.resetStatusEntryList }
+            , resetEntryStatus client entry
+            )
+
+        StatusReset entryID (Ok updatedEntry) ->
+            let
+                entries =
+                    case model.entries of
+                        Received entryList ->
+                            entryList
+                                |> List.map
+                                    (\e ->
+                                        if e.id == entryID then
+                                            updatedEntry
+
+                                        else
+                                            e
+                                    )
+                                |> Received
+
+                        _ ->
+                            model.entries
+
+                resetStatusEntryList =
+                    model.resetStatusEntryList
+                        |> List.filter (\id -> id /= entryID)
+            in
+            ( { model
+                | entries = entries
+                , resetStatusEntryList = resetStatusEntryList
+              }
+            , Cmd.none
+            )
+
+        StatusReset entryID (Err err) ->
+            let
+                resetStatusEntryList =
+                    model.resetStatusEntryList
+                        |> List.filter (\id -> id /= entryID)
+            in
+            ( { model
+                | resetStatusEntryList = resetStatusEntryList
+                , errorList = Kinto.errorToString err :: model.errorList
+              }
+            , Cmd.none
+            )
+
         Logout ->
             ( { model | entries = NotRequested, loginForm = emptyLoginForm }, logoutSession () )
 
@@ -618,6 +674,7 @@ viewEntryList entries ({ newEntry, filters } as model) =
                                             , Html.td [] [ Html.text <| statusToString entry.status ]
                                             , Html.td []
                                                 [ removeEntryButton "Remove this entry" entry.id model.deleteEntryList <| Filters.filtersToFragment filters
+                                                , resetStatusButton "Reset status" entry model.resetStatusEntryList <| Filters.filtersToFragment filters
                                                 , markEntryInvoicedButton "Mark as invoiced" entry model.markEntryInvoicedList <| Filters.filtersToFragment filters
                                                 , markEntryPaidButton "Mark as paid" entry model.markEntryPaidList <| Filters.filtersToFragment filters
                                                 ]
@@ -776,6 +833,7 @@ markEntryInvoicedButton label entry markEntryInvoicedList urlFragment =
         (Html.Attributes.href urlFragment :: loadingAttrs)
         [ Html.text label ]
 
+
 markEntryPaidButton : String -> Entry -> List String -> String -> Html.Html Msg
 markEntryPaidButton label entry markEntryPaidList urlFragment =
     let
@@ -793,6 +851,26 @@ markEntryPaidButton label entry markEntryPaidList urlFragment =
     Html.a
         (Html.Attributes.href urlFragment :: loadingAttrs)
         [ Html.text label ]
+
+
+resetStatusButton : String -> Entry -> List String -> String -> Html.Html Msg
+resetStatusButton label entry resetStatusEntryList urlFragment =
+    let
+        loadingAttrs =
+            if List.member entry.id resetStatusEntryList then
+                [ Html.Attributes.style "opacity" "0.5"
+                , Html.Attributes.class "button button-danger button-loader"
+                ]
+
+            else
+                [ Html.Events.onClick <| ResetStatus entry
+                , Html.Attributes.class "button button-danger"
+                ]
+    in
+    Html.a
+        (Html.Attributes.href urlFragment :: loadingAttrs)
+        [ Html.text label ]
+
 
 
 ---- DECODERS ----
@@ -953,6 +1031,8 @@ markEntryInvoiced client entry =
         |> Kinto.update recordResource entry.id data
         |> Kinto.send (MarkedInvoiced entry.id)
 
+
+
 -- Mark Entry Paid --
 
 
@@ -970,6 +1050,27 @@ markEntryPaid client entry =
     client
         |> Kinto.update recordResource entry.id data
         |> Kinto.send (MarkedPaid entry.id)
+
+
+
+-- Reset Entry Status --
+
+
+resetEntryStatus : Kinto.Client -> Entry -> Cmd Msg
+resetEntryStatus client entry =
+    let
+        data =
+            encodeData
+                entry.name
+                entry.description
+                entry.timeSpent
+                entry.date
+                None
+    in
+    client
+        |> Kinto.update recordResource entry.id data
+        |> Kinto.send (StatusReset entry.id)
+
 
 
 -- Session Data --
