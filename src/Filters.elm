@@ -50,8 +50,7 @@ urlToFilters url =
             let
                 -- The filters query is stored in the fragment, eg #?name=foo&from=2018-09-25
                 filtersQuery =
-                    url.fragment
-                        |> Maybe.withDefault "?"
+                    fragment
                         |> String.dropLeft 1
 
                 -- Save it in the Url's query, so we can use Url.Parser.Query to parse the filters from the Url.

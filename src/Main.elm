@@ -10,11 +10,8 @@ import Html.Events
 import Json.Decode as Decode
 import Json.Encode as Encode
 import Kinto
-import Task
 import Url
-import Url.Builder
 import Url.Parser exposing ((<?>))
-import Url.Parser.Query
 
 
 
@@ -158,7 +155,7 @@ update msg model =
         EntriesFetched (Err err) ->
             ( { model
                 | entries = Failed err
-                , errorList = [ Kinto.errorToString err ] ++ model.errorList
+                , errorList = Kinto.errorToString err :: model.errorList
               }
             , Cmd.none
             )
@@ -195,8 +192,8 @@ update msg model =
                 entries =
                     case model.entries of
                         Received entryList ->
-                            [ entry ]
-                                ++ entryList
+                            entry
+                                :: entryList
                                 |> List.sortBy .date
                                 |> List.reverse
                                 |> Received
@@ -222,7 +219,7 @@ update msg model =
         EntryAdded (Err err) ->
             ( { model
                 | newEntryKintoData = Failed err
-                , errorList = [ Kinto.errorToString err ] ++ model.errorList
+                , errorList = Kinto.errorToString err :: model.errorList
               }
             , Cmd.none
             )
@@ -232,11 +229,11 @@ update msg model =
                 client =
                     Kinto.client model.loginForm.serverURL (Kinto.Basic model.loginForm.username model.loginForm.password)
             in
-            ( { model | deleteEntryList = [ entryID ] ++ model.deleteEntryList }
+            ( { model | deleteEntryList = entryID :: model.deleteEntryList }
             , deleteEntry client entryID
             )
 
-        EntryDeleted entryID (Ok deletedEntry) ->
+        EntryDeleted entryID (Ok _) ->
             let
                 entries =
                     case model.entries of
@@ -267,7 +264,7 @@ update msg model =
             in
             ( { model
                 | deleteEntryList = deleteEntryList
-                , errorList = [ Kinto.errorToString err ] ++ model.errorList
+                , errorList = Kinto.errorToString err :: model.errorList
               }
             , Cmd.none
             )
@@ -388,7 +385,7 @@ viewEntryList entries ({ newEntry, filters } as model) =
                 |> Dict.toList
                 -- Apply all filters in turn on the accumulator (the entries list)
                 |> List.foldl
-                    (\( label, { value, entryFieldGetter, compareFunc } ) entryList ->
+                    (\( _, { value, entryFieldGetter, compareFunc } ) entryList ->
                         entryList
                             |> List.filter (\entry -> compareFunc (entryFieldGetter entry) value)
                     )
@@ -398,7 +395,7 @@ viewEntryList entries ({ newEntry, filters } as model) =
             filters
                 |> Dict.toList
                 |> List.map
-                    (\( label, { value, entryFieldGetter, compareFunc } ) ->
+                    (\( label, { value } ) ->
                         filterBadge label value
                     )
 
@@ -425,7 +422,7 @@ viewEntryList entries ({ newEntry, filters } as model) =
                     , Html.th [] [ Html.text "Actions" ]
                     ]
                 , Html.tbody []
-                    ([ Html.tr []
+                    (Html.tr []
                         [ Html.td []
                             [ Html.input
                                 [ Html.Attributes.type_ "date"
@@ -474,8 +471,7 @@ viewEntryList entries ({ newEntry, filters } as model) =
                                         NotLoading
                             ]
                         ]
-                     ]
-                        ++ (filteredEntries
+                        :: (filteredEntries
                                 |> List.map
                                     (\entry ->
                                         Html.tr []
@@ -639,9 +635,7 @@ removeEntryButton label entryID deleteEntryList urlFragment =
                 ]
     in
     Html.a
-        ([ Html.Attributes.href urlFragment ]
-            ++ loadingAttrs
-        )
+        (Html.Attributes.href urlFragment :: loadingAttrs)
         [ Html.text label ]
 
 
