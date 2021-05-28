@@ -176,6 +176,7 @@ update msg model =
                         model.newEntry.description
                         timeSpent
                         model.newEntry.date
+                        None
 
                 client =
                     Kinto.client model.loginForm.serverURL (Kinto.Basic model.loginForm.username model.loginForm.password)
@@ -741,14 +742,28 @@ decodeStatus =
             )
 
 
-encodeData : String -> String -> Float -> String -> Encode.Value
-encodeData name description timeSpent date =
+encodeData : String -> String -> Float -> String -> Status -> Encode.Value
+encodeData name description timeSpent date status =
     Encode.object
         [ ( "name", Encode.string name )
         , ( "description", Encode.string description )
         , ( "timeSpent", Encode.float timeSpent )
         , ( "date", Encode.string date )
+        , ( "status", encodeStatus status )
         ]
+
+
+encodeStatus : Status -> Encode.Value
+encodeStatus status =
+    case status of
+        None ->
+            Encode.string "None"
+
+        Invoiced ->
+            Encode.string "Invoiced"
+
+        Paid ->
+            Encode.string "Paid"
 
 
 recordResource : Kinto.Resource Entry
