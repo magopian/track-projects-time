@@ -420,6 +420,7 @@ viewEntryList entries ({ newEntry, filters } as model) =
                     , Html.th [] [ Html.text "Project name" ]
                     , Html.th [] [ Html.text "What was done" ]
                     , Html.th [] [ Html.text "How many days" ]
+                    , Html.th [] [ Html.text "Status" ]
                     , Html.th [] [ Html.text "Actions" ]
                     ]
                 , Html.tbody []
@@ -462,6 +463,7 @@ viewEntryList entries ({ newEntry, filters } as model) =
                                 ]
                                 []
                             ]
+                        , Html.td [] []
                         , Html.td []
                             [ loadingButton "Add this entry" <|
                                 case model.newEntryKintoData of
@@ -501,6 +503,7 @@ viewEntryList entries ({ newEntry, filters } as model) =
                                                 ]
                                             , Html.td [ Html.Attributes.style "white-space" "pre-wrap" ] [ Html.text entry.description ]
                                             , Html.td [] [ Html.text <| String.fromFloat entry.timeSpent ]
+                                            , Html.td [] [ Html.text <| statusToString entry.status ]
                                             , Html.td []
                                                 [ removeEntryButton "Remove this entry" entry.id model.deleteEntryList <| Filters.filtersToFragment filters ]
                                             ]
@@ -719,15 +722,21 @@ encodeData name description timeSpent date status =
 
 encodeStatus : Status -> Encode.Value
 encodeStatus status =
+    statusToString status
+        |> Encode.string
+
+
+statusToString : Status -> String
+statusToString status =
     case status of
         None ->
-            Encode.string "None"
+            "None"
 
         Invoiced ->
-            Encode.string "Invoiced"
+            "Invoiced"
 
         Paid ->
-            Encode.string "Paid"
+            "Paid"
 
 
 recordResource : Kinto.Resource Entry
