@@ -11,7 +11,6 @@ import Json.Decode as Decode
 import Json.Encode as Encode
 import Kinto
 import Url
-import Url.Parser exposing ((<?>))
 
 
 
@@ -405,7 +404,7 @@ viewEntryList entries ({ newEntry, filters } as model) =
                 |> List.foldl (+) 0
     in
     Html.div []
-        [ viewUserInfo model.loginForm.serverURL model.loginForm.username
+        [ viewHeader model.loginForm
         , Html.h1 []
             [ Html.text "Days spent on projects: "
             , Html.span [ Html.Attributes.class "badge" ] [ Html.text <| String.fromFloat totalDays ++ " days" ]
@@ -511,17 +510,54 @@ viewEntryList entries ({ newEntry, filters } as model) =
         ]
 
 
-viewUserInfo : String -> String -> Html.Html Msg
-viewUserInfo serverURL username =
+viewHeader : { a | serverURL : String, username : String, password : String } -> Html.Html Msg
+viewHeader loginForm =
     Html.div
-        [ Html.Attributes.style "position" "fixed"
+        [ Html.Attributes.style "display" "flex"
+        , Html.Attributes.style "position" "fixed"
         , Html.Attributes.style "top" "0"
         , Html.Attributes.style "left" "0"
         , Html.Attributes.style "right" "0"
         , Html.Attributes.style "padding" ".2em 1.15em"
         , Html.Attributes.style "z-index" "999"
-        , Html.Attributes.style "text-align" "right"
+        , Html.Attributes.style "text-align" "left"
         , Html.Attributes.class "bg-secondary"
+        ]
+        [ viewDownloadData loginForm
+        , viewUserInfo loginForm
+        ]
+
+
+viewDownloadData : { a | serverURL : String, username : String, password : String } -> Html.Html Msg
+viewDownloadData { serverURL, username, password } =
+    let
+        url =
+            Url.fromString serverURL
+
+        urlWithCredentials =
+            url
+                |> Maybe.map
+                    (\parsedURL ->
+                        { parsedURL | host = username ++ ":" ++ password ++ "@" ++ parsedURL.host }
+                            |> Url.toString
+                            |> (\newURL -> newURL ++ "buckets/default/collections/track-projects-time/records?_sort=-date")
+                    )
+                |> Maybe.withDefault ""
+    in
+    Html.a
+        [ Html.Attributes.href urlWithCredentials
+        , Html.Attributes.download "save.json"
+        , Html.Attributes.target "_blank"
+        , Html.Attributes.style "color" "#111"
+        ]
+        [ Html.text "⇓ Download the data" ]
+
+
+viewUserInfo : { a | serverURL : String, username : String } -> Html.Html Msg
+viewUserInfo { serverURL, username } =
+    Html.div
+        [ Html.Attributes.style "text-align" "right"
+        , Html.Attributes.style "flex-grow" "2"
         ]
         [ Html.text "Connected as "
         , Html.strong [] [ Html.text username ]
