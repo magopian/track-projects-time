@@ -23,10 +23,10 @@ type alias Model =
     , newEntry : NewEntry
     , newEntryKintoData : KintoData Entry
     , loginForm : LoginForm
-    , deleteEntryList : List String -- List of entry IDs being deleted
-    , markEntryInvoicedList : List String -- List of entry IDs being marked as invoiced
-    , markEntryPaidList : List String -- List of entry IDs being marked as paid
-    , resetStatusEntryList : List String -- List of entry IDs being marked as "none" (not paid, not invoiced)
+    , deleteEntryList : List Entry -- List of entries being deleted
+    , markEntryInvoicedList : List Entry -- List of entries being marked as invoiced
+    , markEntryPaidList : List Entry -- List of entries being marked as paid
+    , resetStatusEntryList : List Entry -- List of entries being marked as "none" (not paid, not invoiced)
     , errorList : List String
     , filters : Filters.Filters Entry
     }
@@ -102,13 +102,13 @@ type Msg
     | AddEntry
     | EntryAdded (Result Kinto.Error Entry)
     | MarkInvoiced Entry
-    | MarkedInvoiced String (Result Kinto.Error Entry)
+    | MarkedInvoiced Entry (Result Kinto.Error Entry)
     | MarkPaid Entry
-    | MarkedPaid String (Result Kinto.Error Entry)
+    | MarkedPaid Entry (Result Kinto.Error Entry)
     | ResetStatus Entry
-    | StatusReset String (Result Kinto.Error Entry)
-    | DeleteEntry String
-    | EntryDeleted String (Result Kinto.Error DeletedEntry)
+    | StatusReset Entry (Result Kinto.Error Entry)
+    | DeleteEntry Entry
+    | EntryDeleted Entry (Result Kinto.Error DeletedEntry)
     | EntriesFetched (Result Kinto.Error (Kinto.Pager Entry))
     | UpdateLoginForm LoginForm
     | UseLogin
@@ -236,22 +236,22 @@ update msg model =
             , Cmd.none
             )
 
-        DeleteEntry entryID ->
+        DeleteEntry entry ->
             let
                 client =
                     Kinto.client model.loginForm.serverURL (Kinto.Basic model.loginForm.username model.loginForm.password)
             in
-            ( { model | deleteEntryList = entryID :: model.deleteEntryList }
-            , deleteEntry client entryID
+            ( { model | deleteEntryList = entry :: model.deleteEntryList }
+            , deleteEntry client entry
             )
 
-        EntryDeleted entryID (Ok _) ->
+        EntryDeleted entry (Ok _) ->
             let
                 entries =
                     case model.entries of
                         Received entryList ->
                             entryList
-                                |> List.filter (\e -> e.id /= entryID)
+                                |> List.filter ((/=) entry)
                                 |> Received
 
                         _ ->
@@ -259,7 +259,7 @@ update msg model =
 
                 deleteEntryList =
                     model.deleteEntryList
-                        |> List.filter (\id -> id /= entryID)
+                        |> List.filter ((/=) entry)
             in
             ( { model
                 | entries = entries
@@ -268,11 +268,11 @@ update msg model =
             , Cmd.none
             )
 
-        EntryDeleted entryID (Err err) ->
+        EntryDeleted entry (Err err) ->
             let
                 deleteEntryList =
                     model.deleteEntryList
-                        |> List.filter (\id -> id /= entryID)
+                        |> List.filter ((/=) entry)
             in
             ( { model
                 | deleteEntryList = deleteEntryList
@@ -286,11 +286,11 @@ update msg model =
                 client =
                     Kinto.client model.loginForm.serverURL (Kinto.Basic model.loginForm.username model.loginForm.password)
             in
-            ( { model | markEntryInvoicedList = entry.id :: model.markEntryInvoicedList }
+            ( { model | markEntryInvoicedList = entry :: model.markEntryInvoicedList }
             , markEntryInvoiced client entry
             )
 
-        MarkedInvoiced entryID (Ok updatedEntry) ->
+        MarkedInvoiced entry (Ok updatedEntry) ->
             let
                 entries =
                     case model.entries of
@@ -298,7 +298,7 @@ update msg model =
                             entryList
                                 |> List.map
                                     (\e ->
-                                        if e.id == entryID then
+                                        if e == entry then
                                             updatedEntry
 
                                         else
@@ -311,7 +311,7 @@ update msg model =
 
                 markEntryInvoicedList =
                     model.markEntryInvoicedList
-                        |> List.filter (\id -> id /= entryID)
+                        |> List.filter ((/=) entry)
             in
             ( { model
                 | entries = entries
@@ -320,11 +320,11 @@ update msg model =
             , Cmd.none
             )
 
-        MarkedInvoiced entryID (Err err) ->
+        MarkedInvoiced entry (Err err) ->
             let
                 markEntryInvoicedList =
                     model.markEntryInvoicedList
-                        |> List.filter (\id -> id /= entryID)
+                        |> List.filter ((/=) entry)
             in
             ( { model
                 | markEntryInvoicedList = markEntryInvoicedList
@@ -338,11 +338,11 @@ update msg model =
                 client =
                     Kinto.client model.loginForm.serverURL (Kinto.Basic model.loginForm.username model.loginForm.password)
             in
-            ( { model | markEntryPaidList = entry.id :: model.markEntryPaidList }
+            ( { model | markEntryPaidList = entry :: model.markEntryPaidList }
             , markEntryPaid client entry
             )
 
-        MarkedPaid entryID (Ok updatedEntry) ->
+        MarkedPaid entry (Ok updatedEntry) ->
             let
                 entries =
                     case model.entries of
@@ -350,7 +350,7 @@ update msg model =
                             entryList
                                 |> List.map
                                     (\e ->
-                                        if e.id == entryID then
+                                        if e == entry then
                                             updatedEntry
 
                                         else
@@ -363,7 +363,7 @@ update msg model =
 
                 markEntryPaidList =
                     model.markEntryPaidList
-                        |> List.filter (\id -> id /= entryID)
+                        |> List.filter ((/=) entry)
             in
             ( { model
                 | entries = entries
@@ -390,11 +390,11 @@ update msg model =
                 client =
                     Kinto.client model.loginForm.serverURL (Kinto.Basic model.loginForm.username model.loginForm.password)
             in
-            ( { model | resetStatusEntryList = entry.id :: model.resetStatusEntryList }
+            ( { model | resetStatusEntryList = entry :: model.resetStatusEntryList }
             , resetEntryStatus client entry
             )
 
-        StatusReset entryID (Ok updatedEntry) ->
+        StatusReset entry (Ok updatedEntry) ->
             let
                 entries =
                     case model.entries of
@@ -402,7 +402,7 @@ update msg model =
                             entryList
                                 |> List.map
                                     (\e ->
-                                        if e.id == entryID then
+                                        if e == entry then
                                             updatedEntry
 
                                         else
@@ -415,7 +415,7 @@ update msg model =
 
                 resetStatusEntryList =
                     model.resetStatusEntryList
-                        |> List.filter (\id -> id /= entryID)
+                        |> List.filter ((/=) entry)
             in
             ( { model
                 | entries = entries
@@ -424,11 +424,11 @@ update msg model =
             , Cmd.none
             )
 
-        StatusReset entryID (Err err) ->
+        StatusReset entry (Err err) ->
             let
                 resetStatusEntryList =
                     model.resetStatusEntryList
-                        |> List.filter (\id -> id /= entryID)
+                        |> List.filter ((/=) entry)
             in
             ( { model
                 | resetStatusEntryList = resetStatusEntryList
@@ -672,10 +672,10 @@ viewEntryList entries ({ newEntry, filters } as model) =
                                             , Html.td [] [ Html.text <| String.fromFloat entry.timeSpent ]
                                             , Html.td [] [ Html.text <| statusToString entry.status ]
                                             , Html.td []
-                                                [ removeEntryButton "Remove this entry" entry.id model.deleteEntryList <| Filters.filtersToFragment filters
-                                                , resetStatusButton "Reset status" entry model.resetStatusEntryList <| Filters.filtersToFragment filters
-                                                , markEntryInvoicedButton "Mark as invoiced" entry model.markEntryInvoicedList <| Filters.filtersToFragment filters
-                                                , markEntryPaidButton "Mark as paid" entry model.markEntryPaidList <| Filters.filtersToFragment filters
+                                                [ loadingActionButton "Remove this entry" entry model.deleteEntryList DeleteEntry
+                                                , loadingActionButton "Reset status" entry model.resetStatusEntryList ResetStatus
+                                                , loadingActionButton "Mark as invoiced" entry model.markEntryInvoicedList MarkInvoiced
+                                                , loadingActionButton "Mark as paid" entry model.markEntryPaidList MarkPaid
                                                 ]
                                             ]
                                     )
@@ -832,79 +832,22 @@ loadingButton label buttonState =
         [ Html.text label ]
 
 
-removeEntryButton : String -> String -> List String -> String -> Html.Html Msg
-removeEntryButton label entryID deleteEntryList urlFragment =
+loadingActionButton : String -> Entry -> List Entry -> (Entry -> Msg) -> Html.Html Msg
+loadingActionButton label entry updatingEntryList onClickMessage =
     let
         loadingAttrs =
-            if List.member entryID deleteEntryList then
+            if List.member entry updatingEntryList then
                 [ Html.Attributes.style "opacity" "0.5"
                 , Html.Attributes.class "button button-danger button-loader"
                 ]
 
             else
-                [ Html.Events.onClick <| DeleteEntry entryID
+                [ Html.Events.onClick <| onClickMessage entry
                 , Html.Attributes.class "button button-danger"
                 ]
     in
-    Html.a
-        (Html.Attributes.href urlFragment :: loadingAttrs)
-        [ Html.text label ]
-
-
-markEntryInvoicedButton : String -> Entry -> List String -> String -> Html.Html Msg
-markEntryInvoicedButton label entry markEntryInvoicedList urlFragment =
-    let
-        loadingAttrs =
-            if List.member entry.id markEntryInvoicedList then
-                [ Html.Attributes.style "opacity" "0.5"
-                , Html.Attributes.class "button button-danger button-loader"
-                ]
-
-            else
-                [ Html.Events.onClick <| MarkInvoiced entry
-                , Html.Attributes.class "button button-danger"
-                ]
-    in
-    Html.a
-        (Html.Attributes.href urlFragment :: loadingAttrs)
-        [ Html.text label ]
-
-
-markEntryPaidButton : String -> Entry -> List String -> String -> Html.Html Msg
-markEntryPaidButton label entry markEntryPaidList urlFragment =
-    let
-        loadingAttrs =
-            if List.member entry.id markEntryPaidList then
-                [ Html.Attributes.style "opacity" "0.5"
-                , Html.Attributes.class "button button-danger button-loader"
-                ]
-
-            else
-                [ Html.Events.onClick <| MarkPaid entry
-                , Html.Attributes.class "button button-danger"
-                ]
-    in
-    Html.a
-        (Html.Attributes.href urlFragment :: loadingAttrs)
-        [ Html.text label ]
-
-
-resetStatusButton : String -> Entry -> List String -> String -> Html.Html Msg
-resetStatusButton label entry resetStatusEntryList urlFragment =
-    let
-        loadingAttrs =
-            if List.member entry.id resetStatusEntryList then
-                [ Html.Attributes.style "opacity" "0.5"
-                , Html.Attributes.class "button button-danger button-loader"
-                ]
-
-            else
-                [ Html.Events.onClick <| ResetStatus entry
-                , Html.Attributes.class "button button-danger"
-                ]
-    in
-    Html.a
-        (Html.Attributes.href urlFragment :: loadingAttrs)
+    Html.button
+        (Html.Attributes.type_ "button" :: loadingAttrs)
         [ Html.text label ]
 
 
@@ -1041,11 +984,11 @@ decodeDeletedEntry =
         (Decode.field "deleted" Decode.bool)
 
 
-deleteEntry : Kinto.Client -> String -> Cmd Msg
-deleteEntry client entryID =
+deleteEntry : Kinto.Client -> Entry -> Cmd Msg
+deleteEntry client entry =
     client
-        |> Kinto.delete deletedRecordResource entryID
-        |> Kinto.send (EntryDeleted entryID)
+        |> Kinto.delete deletedRecordResource entry.id
+        |> Kinto.send (EntryDeleted entry)
 
 
 
@@ -1065,7 +1008,7 @@ markEntryInvoiced client entry =
     in
     client
         |> Kinto.update recordResource entry.id data
-        |> Kinto.send (MarkedInvoiced entry.id)
+        |> Kinto.send (MarkedInvoiced entry)
 
 
 
@@ -1085,7 +1028,7 @@ markEntryPaid client entry =
     in
     client
         |> Kinto.update recordResource entry.id data
-        |> Kinto.send (MarkedPaid entry.id)
+        |> Kinto.send (MarkedPaid entry)
 
 
 
@@ -1105,7 +1048,7 @@ resetEntryStatus client entry =
     in
     client
         |> Kinto.update recordResource entry.id data
-        |> Kinto.send (StatusReset entry.id)
+        |> Kinto.send (StatusReset entry)
 
 
 
