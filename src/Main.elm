@@ -536,6 +536,17 @@ viewLoginForm ({ loginForm } as model) =
         ]
 
 
+copyFilteredEntriesDescriptions : List Entry -> Html.Html Msg
+copyFilteredEntriesDescriptions filteredEntries =
+    Html.node "copy-to-clipboard"
+        [ filteredEntries
+            |> List.map .description
+            |> String.join "\n"
+            |> Html.Attributes.attribute "data-content"
+        ]
+        []
+
+
 viewEntryList : List Entry -> Model -> Html.Html Msg
 viewEntryList entries ({ newEntry, filters } as model) =
     let
@@ -585,7 +596,10 @@ viewEntryList entries ({ newEntry, filters } as model) =
                 [ Html.thead []
                     [ Html.th [] [ Html.text "Date" ]
                     , Html.th [] [ Html.text "Project name" ]
-                    , Html.th [] [ Html.text "What was done" ]
+                    , Html.th []
+                        [ Html.text "What was done "
+                        , copyFilteredEntriesDescriptions filteredEntries
+                        ]
                     , Html.th [] [ Html.text "How many days" ]
                     , Html.th [] [ Html.text "Status" ]
                     , Html.th [] [ Html.text "Actions" ]
