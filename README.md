@@ -18,6 +18,24 @@ Maybe in the future it would be nice to be able to
 
 Look at the demo at https://magopian.github.io/track-projects-time/
 
+To start the project locally for development:
+
+```sh
+elm-app start
+```
+
+If you have the following error:
+
+```sh
+code: 'ERR_OSSL_EVP_UNSUPPORTED'
+```
+
+you'll need to update your Node.js to the latest LTS version or use this env variable
+
+```sh
+NODE_OPTIONS=--openssl-legacy-provider elm-app start
+```
+
 ---
 
 
