@@ -2,10 +2,11 @@ import { Elm } from "./Main.elm";
 import registerServiceWorker from "./registerServiceWorker";
 
 const sessionData = localStorage.getItem("session");
+const newEntryData = localStorage.getItem("newEntry");
 
 const app = Elm.Main.init({
-  flags: sessionData
 	node: document.getElementById("root"),
+	flags: { sessionData, newEntryData },
 });
 
 app.ports.saveSession.subscribe((sessionData) => {
@@ -14,6 +15,11 @@ app.ports.saveSession.subscribe((sessionData) => {
 
 app.ports.logoutSession.subscribe(() => {
 	localStorage.removeItem("session");
+	localStorage.removeItem("newEntry");
+});
+
+app.ports.saveEntry.subscribe((newEntry) => {
+	localStorage.setItem("newEntry", JSON.stringify(newEntry));
 });
 
 registerServiceWorker();

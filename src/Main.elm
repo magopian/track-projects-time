@@ -40,6 +40,15 @@ type alias NewEntry =
     }
 
 
+emptyNewEntry : NewEntry
+emptyNewEntry =
+    { date = ""
+    , name = ""
+    , description = ""
+    , timeSpent = "1"
+    }
+
+
 type alias LoginForm =
     { serverURL : String
     , username : String
@@ -56,7 +65,9 @@ emptyLoginForm =
 
 
 type alias Flags =
-    Encode.Value
+    { sessionData : Encode.Value
+    , newEntryData : Encode.Value
+    }
 
 
 init : Flags -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
@@ -64,20 +75,22 @@ init flags url key =
     let
         loginForm =
             -- Decode a string from the value (the stringified session data)
-            Decode.decodeValue Decode.string flags
+            Decode.decodeValue Decode.string flags.sessionData
                 -- Decode a loginForm from the value
                 |> Result.andThen (Decode.decodeString decodeSessionData)
                 |> Result.withDefault emptyLoginForm
 
+        newEntry =
+            -- Decode a string from the value (the stringified newEntry data)
+            Decode.decodeValue Decode.string flags.newEntryData
+                -- Decode a newEntry from the value
+                |> Result.andThen (Decode.decodeString decodeEntryData)
+                |> Result.withDefault emptyNewEntry
+
         model =
             { navKey = key
             , entries = NotRequested
-            , newEntry =
-                { date = ""
-                , name = ""
-                , description = ""
-                , timeSpent = "1"
-                }
+            , newEntry = newEntry
             , newEntryKintoData = NotRequested
             , loginForm = loginForm
             , deleteEntryList = []
@@ -173,7 +186,9 @@ update msg model =
 
         -- LOGGEDIN --
         UpdateEntry newEntry ->
-            ( { model | newEntry = newEntry }, Cmd.none )
+            ( { model | newEntry = newEntry }
+            , saveEntry <| encodeEntryData newEntry
+            )
 
         AddEntry ->
             let
@@ -215,6 +230,9 @@ update msg model =
 
                 newEntry =
                     model.newEntry
+
+                newNewEntry =
+                    { newEntry | description = "" }
             in
             ( { model
                 | entries = entries
@@ -223,9 +241,9 @@ update msg model =
                 , newEntryKintoData = NotRequested
 
                 -- reset the description, keep the rest as we might need to add other items for the same day, same project, same duration
-                , newEntry = { newEntry | description = "" }
+                , newEntry = newNewEntry
               }
-            , Cmd.none
+            , saveEntry <| encodeEntryData newNewEntry
             )
 
         EntryAdded (Err err) ->
@@ -1088,6 +1106,30 @@ decodeSessionData =
 
 
 
+-- Entry Data --
+
+
+encodeEntryData : NewEntry -> Encode.Value
+encodeEntryData newEntry =
+    Encode.object
+        [ ( "date", Encode.string newEntry.date )
+        , ( "name", Encode.string newEntry.name )
+        , ( "description", Encode.string newEntry.description )
+        , ( "timeSpent", Encode.string newEntry.timeSpent )
+        ]
+
+
+decodeEntryData : Decode.Decoder NewEntry
+decodeEntryData =
+    Decode.map4
+        NewEntry
+        (Decode.field "date" Decode.string)
+        (Decode.field "name" Decode.string)
+        (Decode.field "description" Decode.string)
+        (Decode.field "timeSpent" Decode.string)
+
+
+
 ---- PORTS ----
 
 
@@ -1095,6 +1137,9 @@ port saveSession : Encode.Value -> Cmd msg
 
 
 port logoutSession : () -> Cmd msg
+
+
+port saveEntry : Encode.Value -> Cmd msg
 
 
 
