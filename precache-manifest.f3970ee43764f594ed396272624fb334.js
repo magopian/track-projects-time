@@ -4,7 +4,7 @@ self.__precacheManifest = (self.__precacheManifest || []).concat([
     "url": "./favicon.ico"
   },
   {
-    "revision": "1f2ccc7adb9c366f9b4da375b5c58504",
+    "revision": "34318bdde930a358e87f871ccd45239c",
     "url": "./index.html"
   },
   {
@@ -16,8 +16,8 @@ self.__precacheManifest = (self.__precacheManifest || []).concat([
     "url": "./shoelace.css"
   },
   {
-    "revision": "8a4428482460c1455ad1",
-    "url": "./static/js/main.8a442848.chunk.js"
+    "revision": "d61c8b2cc8e686932861",
+    "url": "./static/js/main.d61c8b2c.chunk.js"
   },
   {
     "revision": "d5752d2fdce3c7e150f5",
@@ -28,7 +28,7 @@ self.__precacheManifest = (self.__precacheManifest || []).concat([
     "url": "./static/js/vendors~main.604c6712.chunk.js"
   },
   {
-    "revision": "2c51619bc74d2a4b2793de053097b635",
+    "revision": "f72ae8ee69ef635defddb792f3002541",
     "url": "./styles.css"
   }
 ]);
