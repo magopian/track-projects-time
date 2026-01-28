@@ -67,18 +67,22 @@ emptyLoginForm =
 type alias Flags =
     { sessionData : Encode.Value
     , newEntryData : Encode.Value
+    , serverURL : String
     }
 
 
 init : Flags -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
 init flags url key =
     let
+        emptyLoginFormWithServerURL =
+            { emptyLoginForm | serverURL = flags.serverURL }
+
         loginForm =
             -- Decode a string from the value (the stringified session data)
             Decode.decodeValue Decode.string flags.sessionData
                 -- Decode a loginForm from the value
                 |> Result.andThen (Decode.decodeString decodeSessionData)
-                |> Result.withDefault emptyLoginForm
+                |> Result.withDefault emptyLoginFormWithServerURL
 
         newEntry =
             -- Decode a string from the value (the stringified newEntry data)
@@ -168,7 +172,9 @@ update msg model =
 
         -- LOGINFORM --
         UpdateLoginForm loginForm ->
-            ( { model | loginForm = loginForm }, Cmd.none )
+            ( { model | loginForm = loginForm }
+            , saveServerURL <| Encode.string loginForm.serverURL
+            )
 
         UseLogin ->
             useLogin model
@@ -456,7 +462,7 @@ update msg model =
             )
 
         Logout ->
-            ( { model | entries = NotRequested, loginForm = emptyLoginForm }, logoutSession () )
+            ( { model | entries = NotRequested, loginForm = { emptyLoginForm | serverURL = model.loginForm.serverURL } }, logoutSession () )
 
         DiscardError index ->
             ( { model | errorList = List.take index model.errorList ++ List.drop (index + 1) model.errorList }
@@ -1140,6 +1146,9 @@ port logoutSession : () -> Cmd msg
 
 
 port saveEntry : Encode.Value -> Cmd msg
+
+
+port saveServerURL : Encode.Value -> Cmd msg
 
 
 
