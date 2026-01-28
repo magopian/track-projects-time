@@ -1,6 +1,6 @@
 {
-  "main.js": "./static/js/main.a7afc579.chunk.js",
-  "main.js.map": "./static/js/main.a7afc579.chunk.js.map",
+  "main.js": "./static/js/main.8d3cd824.chunk.js",
+  "main.js.map": "./static/js/main.8d3cd824.chunk.js.map",
   "runtime~main.js": "./static/js/runtime~main.d5752d2f.js",
   "runtime~main.js.map": "./static/js/runtime~main.d5752d2f.js.map",
   "vendors~main.js": "./static/js/vendors~main.604c6712.chunk.js",
@@ -9,7 +9,7 @@
   "favicon.ico": "./favicon.ico",
   "index.html": "./index.html",
   "manifest.json": "./manifest.json",
-  "precache-manifest.7f3f3b6c56483354d2ef069ff6761947.js": "./precache-manifest.7f3f3b6c56483354d2ef069ff6761947.js",
+  "precache-manifest.9b054e5fdf21c63a329da628557fc266.js": "./precache-manifest.9b054e5fdf21c63a329da628557fc266.js",
   "shoelace.css": "./shoelace.css",
   "styles.css": "./styles.css"
 }
